@@ -1,0 +1,41 @@
+{
+  "name": "micros-scz-front",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000 --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --port 3000 --host 0.0.0.0",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/paths": "^4.0.542",
+    "@remotion/player": "^4.0.542",
+    "@remotion/shapes": "^4.0.542",
+    "@turf/turf": "^7.4.0",
+    "geojson-vt": "^5.0.4",
+    "lucide-react": "^0.546.0",
+    "maplibre-gl": "^6.15.0",
+    "mp4-muxer": "^5.2.2",
+    "rbush": "^4.0.1",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "three": "^0.187.0",
+    "vt-pbf": "^3.1.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.4.21",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}
