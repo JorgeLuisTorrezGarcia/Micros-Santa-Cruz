@@ -280,4 +280,16 @@ Plan para MicroBot: reconocer localmente las cinco acciones actuales con respues
 
 ## 📄 Licencia
 
-Este proyecto está disponible bajo la licencia Apache-2.0. Desarrollado para la comunidad de pasajeros y el transporte público de Santa Cruz de la Sierra.
+El código original de Micros Santa Cruz se publica bajo la licencia Apache-2.0. Consulta el archivo [LICENSE](./LICENSE) para conocer los permisos, condiciones y limitaciones.
+
+La licencia del proyecto no reemplaza ni amplía los derechos de terceros. Bibliotecas, datasets geográficos, mapas, marcas, imágenes y otros recursos que no sean propiedad de los mantenedores conservan sus propias licencias y requisitos de atribución. Verifica sus términos con sus respectivas fuentes antes de redistribuirlos.
+
+Copyright 2026 JORGE LUIS TORREZ GARCIA.
+
+This project is licensed under the Apache License, Version 2.0.
+
+You may obtain a copy of the License at:
+
+https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
