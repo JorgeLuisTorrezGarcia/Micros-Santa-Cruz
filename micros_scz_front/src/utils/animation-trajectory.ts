@@ -30,6 +30,15 @@ export interface AnimationSample {
   totalDurationSeconds: number;
 }
 
+export const CAMERA_CHOREOGRAPHIES = [
+  { id: 'cinematic', label: 'Cinemática actual' },
+  { id: 'close-follow', label: 'Seguimiento cercano' },
+  { id: 'side-orbit', label: 'Órbita lateral' },
+  { id: 'high-overview', label: 'Panorámica elevada' },
+] as const;
+
+export type CameraChoreographyId = (typeof CAMERA_CHOREOGRAPHIES)[number]['id'];
+
 /**
  * Calculates bearing angle in degrees from coord1 to coord2.
  * 0° = North, 90° = East, 180° = South, 270° = West.
@@ -220,7 +229,69 @@ export class RouteAnimationTrajectory {
   /**
    * Samples the animation state at normalized progress t in [0, 1].
    */
-  public sampleAtProgress(t: number): AnimationSample {
+  public sampleAtProgress(
+    t: number,
+    choreography: CameraChoreographyId = 'cinematic'
+  ): AnimationSample {
+    const sample = this.sampleBaseAtProgress(t);
+    if (choreography === 'cinematic') return sample;
+
+    const progress = sample.progressFraction;
+    const introBlend = smoothStep(progress / 0.12);
+    const outroBlend = smoothStep((progress - 0.82) / 0.18);
+    const blend = introBlend * (1 - outroBlend);
+
+    switch (choreography) {
+      case 'close-follow':
+        return {
+          ...sample,
+          cameraBearing:
+            (sample.bearing + 4 * Math.sin(progress * Math.PI * 2) + 360) % 360,
+          cameraPitch: interpolateNumber(
+            interpolateNumber(0, sample.isBus ? 64 : 58, introBlend),
+            38,
+            outroBlend
+          ),
+          cameraZoom: interpolateNumber(
+            interpolateNumber(14.5, sample.isBus ? 17.1 : 16.8, introBlend),
+            14.5,
+            outroBlend
+          ),
+        };
+      case 'side-orbit':
+        return {
+          ...sample,
+          cameraBearing:
+            (sample.bearing + 105 * Math.sin(progress * Math.PI * 2) + 360) % 360,
+          cameraPitch: interpolateNumber(
+            interpolateNumber(0, 58, introBlend),
+            38,
+            outroBlend
+          ),
+          cameraZoom: interpolateNumber(
+            interpolateNumber(14.5, 16.7, introBlend),
+            14.5,
+            outroBlend
+          ),
+        };
+      case 'high-overview':
+        return {
+          ...sample,
+          cameraBearing:
+            (sample.bearing + 12 * Math.sin(progress * Math.PI) + 360) % 360,
+          cameraPitch: interpolateNumber(
+            interpolateNumber(0, 38, introBlend),
+            28,
+            outroBlend
+          ),
+          cameraZoom: interpolateNumber(14.5, 15.1, blend),
+        };
+      default:
+        return sample;
+    }
+  }
+
+  private sampleBaseAtProgress(t: number): AnimationSample {
     const clampedT = Math.max(0, Math.min(1, t));
     const elapsedSec = clampedT * this.totalDurationSeconds;
 

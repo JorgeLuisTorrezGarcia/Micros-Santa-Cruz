@@ -109,4 +109,34 @@ test('RouteAnimationTrajectory samples continuous trajectory along trip', () => 
   const end = trajectory.sampleAtProgress(1);
   assert.equal(end.progressFraction, 1);
   assert.equal(end.phase, 'arrival');
+
+  const styles = ['close-follow', 'side-orbit', 'high-overview'] as const;
+
+  for (const progress of [0, 0.15, 0.5, 0.9, 1]) {
+    const original = trajectory.sampleAtProgress(progress);
+    for (const style of styles) {
+      const sample = trajectory.sampleAtProgress(progress, style);
+      assert.deepEqual(trajectory.sampleAtProgress(progress, style), sample);
+      assert.deepEqual(sample.coords, original.coords);
+      assert.equal(sample.bearing, original.bearing);
+      assert.equal(sample.phase, original.phase);
+      assert.equal(sample.elapsedSeconds, original.elapsedSeconds);
+      assert.ok(sample.cameraPitch >= 0 && sample.cameraPitch <= 75);
+      assert.ok(sample.cameraZoom >= 14 && sample.cameraZoom <= 18);
+    }
+    assert.deepEqual(
+      trajectory.sampleAtProgress(progress, 'cinematic'),
+      original,
+      'the default choreography must remain unchanged'
+    );
+  }
+
+  assert.notEqual(
+    trajectory.sampleAtProgress(0.25, 'side-orbit').cameraBearing,
+    trajectory.sampleAtProgress(0.25, 'close-follow').cameraBearing
+  );
+  assert.notEqual(
+    trajectory.sampleAtProgress(0.5, 'high-overview').cameraPitch,
+    trajectory.sampleAtProgress(0.5, 'cinematic').cameraPitch
+  );
 });

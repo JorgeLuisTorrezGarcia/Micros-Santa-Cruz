@@ -14,8 +14,10 @@ import {
 } from 'lucide-react';
 import type { TripOption } from '../types.ts';
 import {
+  CAMERA_CHOREOGRAPHIES,
   RouteAnimationTrajectory,
   type AnimationSample,
+  type CameraChoreographyId,
 } from '../utils/animation-trajectory.ts';
 import {
   NavigationMapCanvas,
@@ -262,6 +264,45 @@ function PlaybackHud(props: PlaybackHudProps) {
   );
 }
 
+interface CameraChoreographySelectorProps {
+  value: CameraChoreographyId;
+  onChange: (value: CameraChoreographyId) => void;
+}
+
+function CameraChoreographySelector({
+  value,
+  onChange,
+}: CameraChoreographySelectorProps) {
+  return (
+    <div className="flex-none flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/80 overflow-x-auto">
+      <span className="text-[11px] font-semibold text-slate-400 shrink-0">
+        Cámara
+      </span>
+      <div
+        role="group"
+        aria-label="Coreografía de cámara"
+        className="flex items-center gap-1.5"
+      >
+        {CAMERA_CHOREOGRAPHIES.map((choreography) => (
+          <button
+            key={choreography.id}
+            type="button"
+            aria-pressed={value === choreography.id}
+            onClick={() => onChange(choreography.id)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap border transition ${
+              value === choreography.id
+                ? 'bg-emerald-600 text-white border-emerald-400/70'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+          >
+            {choreography.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> = ({
   isOpen,
   onClose,
@@ -273,6 +314,8 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [videoQuality, setVideoQuality] = useState<'1080p' | '720p'>('1080p');
   const [exportFps, setExportFps] = useState<30 | 60>(30);
+  const [cameraChoreography, setCameraChoreography] =
+    useState<CameraChoreographyId>('cinematic');
   const [toastNotification, setToastNotification] = useState<string | null>(null);
 
   // Playback state
@@ -329,8 +372,8 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
         totalDurationSeconds: 14,
       };
     }
-    return trajectory.sampleAtProgress(progress);
-  }, [trajectory, progress]);
+    return trajectory.sampleAtProgress(progress, cameraChoreography);
+  }, [trajectory, progress, cameraChoreography]);
 
   // Reset progress when modal opens or trip changes
   useEffect(() => {
@@ -414,7 +457,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
       const canvas = await canvasHandle.prepareExport(
         width,
         height,
-        (fraction) => trajectory.sampleAtProgress(fraction)
+        (fraction) => trajectory.sampleAtProgress(fraction, cameraChoreography)
       );
       const lineName = trip?.legs[0]?.routeLabel?.replace(/\s+/g, '-').toLowerCase() || 'micro';
 
@@ -433,7 +476,10 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
           await canvasHandle.seek(fraction);
         },
         getOverlayData: () => {
-          const sample = trajectory.sampleAtProgress(currentFractionRef.current);
+          const sample = trajectory.sampleAtProgress(
+            currentFractionRef.current,
+            cameraChoreography
+          );
           return {
             lineLabel: sample.lineLabel,
             lineColor: sample.lineColor,
@@ -484,6 +530,10 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
         isRecording={isRecording}
         onExportVideo={handleExportVideo}
         onClose={onClose}
+      />
+      <CameraChoreographySelector
+        value={cameraChoreography}
+        onChange={setCameraChoreography}
       />
 
       {/* Center Canvas Stage Area */}
