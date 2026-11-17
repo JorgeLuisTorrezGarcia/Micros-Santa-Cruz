@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bus, Map, Zap, CheckCircle2, X } from 'lucide-react';
+import { Bus, Map, CheckCircle2, X } from 'lucide-react';
 
 interface InfoModalProps {
   isOpen: boolean;
@@ -82,7 +82,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
                   3
                 </span>
                 <div>
-                  <strong className="text-slate-100">Planificador A → B:</strong>
+                  <strong className="text-slate-100">Navegación:</strong>
                   <p className="text-slate-400 text-[11px] mt-0.5">
                     Fija un Origen A y Destino B. El motor calculará rutas directas y opciones con 1 transbordo, tiempos estimados y tramos a pie.
                   </p>
@@ -94,26 +94,15 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
                   4
                 </span>
                 <div>
-                  <strong className="text-slate-100">Cargar GeoJSON pesado (26 MB):</strong>
+                  <strong className="text-slate-100">Agregar datos al mapa:</strong>
                   <p className="text-slate-400 text-[11px] mt-0.5">
-                    Usa la pestaña <strong>Dataset</strong> para arrastrar el archivo completo con todas las líneas de Santa Cruz. Un <strong>Web Worker</strong> con <strong>geojson-vt</strong> y <strong>RBush</strong> lo procesará en segundos sin congelar la pantalla.
+                    En la pestaña <strong>Datos</strong> puedes añadir archivos GeoJSON o JSON con líneas, puntos o zonas. Las rutas oficiales no se modifican.
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-1 text-[11px]">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Rendimiento y Tecnologías Utilizadas</span>
-            </div>
-            <ul className="list-disc list-inside text-slate-400 space-y-0.5">
-              <li><strong>MapLibre GL JS:</strong> Renderizado acelerado WebGL.</li>
-              <li><strong>geojson-vt:</strong> Mosaicos vectoriales en Web Worker.</li>
-              <li><strong>RBush:</strong> Índice espacial R-tree de alta velocidad.</li>
-            </ul>
-          </div>
         </div>
 
         {/* Footer */}

@@ -20,7 +20,7 @@ import {
   Bus,
   MapPin,
   Route as RouteIcon,
-  Compass,
+  Radar,
   FileCode,
   ChevronDown,
   ChevronUp,
@@ -38,12 +38,12 @@ type AppShellProps = { controller: AppController };
 type AppNavigationProps = AppShellProps & { tabsConfig: typeof tabsConfig };
 
 const tabsConfig = [
-    { id: 'copilot', label: 'Copiloto IA', icon: Sparkles },
+    { id: 'copilot', label: 'MicroBot scz', icon: Sparkles },
     { id: 'lines', label: 'Líneas', icon: Bus },
-    { id: 'near', label: 'Cerca', icon: Compass },
-    { id: 'route', label: 'A → B', icon: RouteIcon },
+    { id: 'near', label: 'Cerca', icon: Radar },
+    { id: 'route', label: 'Navegación', icon: RouteIcon },
     { id: 'places', label: 'Lugares', icon: MapPin },
-    { id: 'dataset', label: 'Dataset', icon: FileCode },
+    { id: 'dataset', label: 'Agregar', icon: FileCode },
   ] as const;
 
 function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
@@ -67,8 +67,8 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block">
               {stats
-                ? `${stats.routeCount} rutas indexadas · RBush + geojson-vt activo`
-                : 'Cargando sistema de rutas...'}
+                ? `${stats.routeCount} rutas listas para consultar`
+                : 'Cargando rutas...'}
             </p>
           </div>
         </div>
@@ -199,12 +199,12 @@ function AppMap({ controller }: AppShellProps) {
 function getSidebarStatusLabel(controller: AppController) {
   const { activeTab, routes, pointP, nearResults, pointA, pointB, trips, pois } = controller;
   const labels = {
-    copilot: 'Gemini Flash',
+    copilot: 'Asistente de rutas',
     lines: `${routes.length} líneas`,
     near: pointP ? `${nearResults.length} cercanas` : 'Sin punto',
     route: pointA && pointB ? `${trips.length} rutas` : 'A → B',
     places: `${pois.length} lugares`,
-    dataset: 'Rendimiento',
+    dataset: 'Datos del mapa',
   };
   return labels[activeTab];
 }

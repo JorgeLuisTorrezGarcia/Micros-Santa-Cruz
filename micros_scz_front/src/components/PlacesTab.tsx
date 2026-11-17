@@ -239,7 +239,7 @@ export const PlacesTab: React.FC<PlacesTabProps> = ({
   };
 
   const getVisibilityLabel = (poi: CommunityPOIItem): string => {
-    if (poi.source !== 'community') return 'Base offline';
+    if (poi.source !== 'community') return 'Lugar de referencia';
     if (poi.visibility === 'private') return 'Privado';
     if (poi.visibility === 'public_pending') return 'En revisión';
     if (poi.visibility === 'rejected') return 'Rechazado';
@@ -303,7 +303,7 @@ export const PlacesTab: React.FC<PlacesTabProps> = ({
           title={
             dbConfigured
               ? 'Agregar lugar privado o propuesta pública'
-              : 'Agregar lugar (requiere PostgreSQL configurado)'
+              : 'Agregar lugares a tu cuenta no está disponible por ahora'
           }
         >
           <Plus className="w-3.5 h-3.5" />

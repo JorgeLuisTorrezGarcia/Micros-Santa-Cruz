@@ -14,6 +14,7 @@ import {
   UserProfile,
 } from './types.ts';
 import { routeWorkerService } from './workers/worker-client.ts';
+import { getUserFriendlyError } from './services/apiClient.ts';
 import {
   bootstrapCommunity,
   createFavoriteRoute,
@@ -169,7 +170,7 @@ export function useAppController() {
       showToast(`¡${res.routes.length} rutas cargadas en ${res.stats.loadTimeMs} ms!`);
     } catch (err: unknown) {
       console.error('Error cargando rutas predeterminadas:', err);
-      showToast('Error al cargar archivo inicial de rutas');
+      showToast('No pudimos cargar las rutas. Intenta actualizar la página.');
     } finally {
       setIsLoading(false);
     }
@@ -242,7 +243,7 @@ export function useAppController() {
   // (Preserves rutas_micro_scz.geojson as the immutable truth for bus routes)
   const handleLoadCustomFile = async (file: File) => {
     setIsLoading(true);
-    showToast(`Cargando capa técnica: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`);
+    showToast(`Cargando ${file.name}...`);
 
     try {
       const text = await file.text();
@@ -257,10 +258,10 @@ export function useAppController() {
         color: '#8b5cf6',
       });
 
-      showToast(`Capa ${file.name} superpuesta con éxito (${count} geometrías). Las rutas oficiales de micro se mantienen intactas.`);
+      showToast(`Agregamos ${count} elementos de ${file.name} al mapa.`);
     } catch (err: unknown) {
       console.error('Error cargando archivo GeoJSON personalizado:', err);
-      showToast('Error al procesar el archivo GeoJSON técnico');
+      showToast('No pudimos abrir el archivo. Verifica que sea un GeoJSON válido e inténtalo de nuevo.');
     } finally {
       setIsLoading(false);
     }
@@ -311,12 +312,17 @@ export function useAppController() {
           }
         }
       })
-      .catch((err) => console.error('Error in queryNear:', err));
+      .catch((err) => {
+        console.error('Error al buscar líneas cercanas:', err);
+        if (isSubscribed) {
+          showToast('No pudimos buscar las líneas cercanas. Inténtalo nuevamente.');
+        }
+      });
 
     return () => {
       isSubscribed = false;
     };
-  }, [pointP, searchRadiusMeters]);
+  }, [pointP, searchRadiusMeters, showToast]);
 
   // Run Route Planning whenever pointA, pointB, or params change
   useEffect(() => {
@@ -350,7 +356,12 @@ export function useAppController() {
           }
         }
       })
-      .catch((err) => console.error('Error in queryPlan:', err))
+      .catch((err) => {
+        console.error('Error al calcular las rutas:', err);
+        if (isSubscribed) {
+          showToast('No pudimos calcular las rutas. Inténtalo nuevamente.');
+        }
+      })
       .finally(() => {
         if (isSubscribed) setIsLoading(false);
       });
@@ -358,7 +369,7 @@ export function useAppController() {
     return () => {
       isSubscribed = false;
     };
-  }, [pointA, pointB]);
+  }, [pointA, pointB, showToast]);
 
   // Map Click Handler: responds based on activeTab or coordinate picking
   const handleMapClickPoint = (coords: Coordinates) => {
@@ -395,7 +406,7 @@ export function useAppController() {
   // GPS Locate User
   const handleLocateUser = () => {
     if (!navigator.geolocation) {
-      showToast('Geolocalización no soportada por el navegador');
+      showToast('Este dispositivo no permite compartir tu ubicación. Puedes fijar el punto en el mapa.');
       return;
     }
 
@@ -422,7 +433,7 @@ export function useAppController() {
       },
       (err) => {
         console.warn('Geolocation error:', err);
-        showToast('No se pudo acceder al GPS. Revisa permisos de ubicación.');
+        showToast('No pudimos obtener tu ubicación. Revisa los permisos o fija el punto en el mapa.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -439,7 +450,7 @@ export function useAppController() {
     }
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      showToast('Tu dispositivo no soporta geolocalización GPS');
+      showToast('Este dispositivo no permite compartir tu ubicación; la alarma no podrá seguir tu recorrido.');
       return;
     }
 
@@ -720,7 +731,7 @@ export function useAppController() {
       showToast('Sesión cerrada');
     } catch (error) {
       console.error('No se pudo cerrar la sesión en el servidor:', error);
-      showToast('No se pudo cerrar la sesión. Inténtalo de nuevo.');
+      showToast(getUserFriendlyError(error, 'No pudimos cerrar tu sesión. Inténtalo nuevamente.'));
     }
   }, [refreshCommunityData, showToast]);
 
@@ -747,9 +758,8 @@ export function useAppController() {
         }
         await refreshCommunityData();
       } catch (err: unknown) {
-        showToast(
-          err instanceof Error ? err.message : 'No se pudo actualizar favorito'
-        );
+        console.error('Error al actualizar tus líneas favoritas:', err);
+        showToast(getUserFriendlyError(err, 'No pudimos actualizar tus favoritos. Inténtalo nuevamente.'));
       }
     },
     [user, favoriteLines, refreshCommunityData, showToast]
@@ -783,7 +793,7 @@ export function useAppController() {
     try {
       if (matchingTripFavorite) {
         await deleteFavoriteRoute(matchingTripFavorite.id);
-        showToast('Viaje A → B quitado de favoritos');
+        showToast('Ruta quitado de favoritos');
       } else {
         const originLabel =
           pointAAddress || `${pointA[1].toFixed(4)}, ${pointA[0].toFixed(4)}`;
@@ -800,13 +810,12 @@ export function useAppController() {
           destLon: pointB[0],
           tripSummary: activeTrip?.summary || null,
         });
-        showToast('Viaje A → B guardado en favoritos');
+        showToast('Ruta guardado en favoritos');
       }
       await refreshCommunityData();
     } catch (err: unknown) {
-      showToast(
-        err instanceof Error ? err.message : 'No se pudo guardar viaje favorito'
-      );
+      console.error('Error al actualizar tus viajes favoritos:', err);
+      showToast(getUserFriendlyError(err, 'No pudimos actualizar tus favoritos. Inténtalo nuevamente.'));
     }
   }, [
     pointA,
@@ -847,9 +856,8 @@ export function useAppController() {
         await refreshCommunityData();
         showToast('Favorito eliminado');
       } catch (err: unknown) {
-        showToast(
-          err instanceof Error ? err.message : 'Error eliminando favorito'
-        );
+        console.error('Error al eliminar el favorito:', err);
+        showToast(getUserFriendlyError(err, 'No pudimos eliminar el favorito. Inténtalo nuevamente.'));
       }
     },
     [refreshCommunityData, showToast]
@@ -862,9 +870,8 @@ export function useAppController() {
         await refreshCommunityData();
         showToast('Lugar eliminado');
       } catch (err: unknown) {
-        showToast(
-          err instanceof Error ? err.message : 'No se pudo eliminar el lugar'
-        );
+        console.error('Error al eliminar el lugar:', err);
+        showToast(getUserFriendlyError(err, 'No pudimos eliminar el lugar. Inténtalo nuevamente.'));
       }
     },
     [refreshCommunityData, showToast]

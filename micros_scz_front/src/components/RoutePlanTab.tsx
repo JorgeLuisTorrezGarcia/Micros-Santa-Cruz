@@ -204,7 +204,7 @@ function FavoriteTripsList({
           <p className="text-[11px] font-semibold text-amber-300 flex items-center gap-1.5">
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
             <span className="tabular-nums">
-              Viajes A → B favoritos ({favoriteTrips.length})
+              Rutas favoritos ({favoriteTrips.length})
             </span>
           </p>
           <div className="space-y-1 max-h-24 overflow-y-auto pr-0.5">
@@ -373,7 +373,7 @@ function RoutePointsActions({
                 ? 'bg-amber-950/60 border-amber-700/60 text-amber-300'
                 : 'bg-slate-900/80 border-slate-700 text-slate-300 hover:text-white'
             }`}
-            title="Guardar trayecto A → B en favoritos"
+            title="Guardar ruta en favoritos"
           >
             <Star
               className={`w-3 h-3 ${

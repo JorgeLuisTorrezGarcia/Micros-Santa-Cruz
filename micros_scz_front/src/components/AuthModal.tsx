@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { UserProfile } from '../types.ts';
 import { authenticateWithGoogleToken } from '../services/communityService.ts';
+import {
+  ApiClientError,
+  getUserFriendlyError,
+} from '../services/apiClient.ts';
 import { X, LogOut, ShieldCheck, Cloud, CloudOff, User } from 'lucide-react';
 
 declare global {
@@ -120,9 +124,9 @@ function AuthLoginSection({
     <>
       <p className="text-xs text-slate-300 leading-relaxed">
         Guarda tus lugares personales privados, propón nuevos puntos y
-        categorías para Santa Cruz y sincroniza tus líneas y viajes{' '}
+        categorías para Santa Cruz y guarda tus líneas y viajes{' '}
         <strong className="text-slate-100">A → B</strong> favoritos en
-        PostgreSQL.
+        tu cuenta.
       </p>
 
       <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/70 flex items-center gap-2.5 text-xs">
@@ -130,16 +134,14 @@ function AuthLoginSection({
           <>
             <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="text-slate-200">
-              Backend PostgreSQL conectado y listo para sincronizar.
+              Tu cuenta está lista para guardar y sincronizar tus favoritos.
             </span>
           </>
         ) : (
           <>
             <CloudOff className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="text-slate-300">
-              Modo offline activo: configura{' '}
-              <code className="text-amber-300 font-mono">DATABASE_URL</code>{' '}
-              (Supabase o Neon) en tu backend API para habilitar cuentas en la nube.
+              El acceso a cuentas no está disponible por ahora. Puedes seguir usando las funciones principales sin iniciar sesión.
             </span>
           </>
         )}
@@ -150,7 +152,7 @@ function AuthLoginSection({
           <div ref={googleBtnRef} className="min-h-[44px]" />
           {isSubmitting && (
             <p className="text-xs text-emerald-400 mt-2">
-              Verificando cuenta con el servidor...
+              Conectando tu cuenta...
             </p>
           )}
         </div>
@@ -158,18 +160,10 @@ function AuthLoginSection({
         dbConfigured && (
           <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 space-y-1">
             <p className="font-semibold text-slate-100">
-              Configuración pendiente de Google Sign-In
+              El inicio de sesión no está disponible por ahora
             </p>
             <p className="text-[11px] text-slate-400">
-              Define{' '}
-              <code className="font-mono text-emerald-300">
-                VITE_GOOGLE_CLIENT_ID
-              </code>{' '}
-              y{' '}
-              <code className="font-mono text-emerald-300">
-                GOOGLE_CLIENT_ID
-              </code>{' '}
-              con tu OAuth Web Client ID para mostrar el botón oficial de Google.
+              Puedes seguir usando las funciones principales de la aplicación sin iniciar sesión.
             </p>
           </div>
         )
@@ -216,7 +210,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         client_id: googleClientId,
         callback: async (resp) => {
           if (!resp.credential) {
-            setErrorMsg('Google no devolvió un token válido.');
+            setErrorMsg('No pudimos confirmar tu acceso con Google. Inténtalo nuevamente.');
             return;
           }
           setIsSubmitting(true);
@@ -228,10 +222,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             onAuthSuccess(signedInUser);
             onClose();
           } catch (err: unknown) {
+            console.error('Error al iniciar sesión con Google:', err);
             setErrorMsg(
-              err instanceof Error
-                ? err.message
-                : 'No se pudo iniciar sesión con Google.'
+              err instanceof ApiClientError && err.status === 401
+                ? 'No pudimos validar tu acceso con Google. Inténtalo nuevamente.'
+                : getUserFriendlyError(
+                    err,
+                    'No pudimos iniciar sesión. Inténtalo nuevamente.'
+                  )
             );
           } finally {
             setIsSubmitting(false);
@@ -255,9 +253,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const handleScriptLoad = () => initGsi();
     const handleScriptError = () => {
       if (!cancelled) {
-        setErrorMsg(
-          'Sin conexión para cargar el acceso con Google. La app sigue funcionando offline.'
-        );
+        console.warn('No se pudo cargar el servicio de inicio de sesión con Google.');
+        setErrorMsg('No pudimos cargar el inicio de sesión. Revisa tu conexión e inténtalo nuevamente.');
       }
     };
 

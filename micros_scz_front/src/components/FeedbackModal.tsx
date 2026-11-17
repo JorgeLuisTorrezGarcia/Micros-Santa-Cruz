@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FeedbackCategory, FeedbackTargetType } from '../types.ts';
 import { submitFeedback } from '../services/communityService.ts';
+import { getUserFriendlyError } from '../services/apiClient.ts';
 import { X, Star, MessageSquarePlus, CheckCircle2 } from 'lucide-react';
 
 interface FeedbackModalProps {
@@ -16,7 +17,7 @@ const CATEGORY_OPTIONS: Array<{ value: FeedbackCategory; label: string }> = [
   { value: 'parada', label: 'Parada o desvío' },
   { value: 'lugar_erroneo', label: 'Lugar o dirección errónea' },
   { value: 'sugerencia', label: 'Sugerencia de mejora' },
-  { value: 'bug', label: 'Error técnico' },
+  { value: 'bug', label: 'Problema con la aplicación' },
 ];
 
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({
@@ -71,8 +72,12 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         onClose();
       }, 900);
     } catch (err: unknown) {
+      console.error('Error al enviar el reporte:', err);
       setErrorMsg(
-        err instanceof Error ? err.message : 'No se pudo enviar tu reporte.'
+        getUserFriendlyError(
+          err,
+          'No pudimos enviar tu reporte. Inténtalo nuevamente.'
+        )
       );
     } finally {
       setIsSubmitting(false);
@@ -133,7 +138,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                   >
                     <option value="app">Aplicación general</option>
                     <option value="line">Línea de micro</option>
-                    <option value="trip">Viaje A → B</option>
+                    <option value="trip">Navegación</option>
                     <option value="place">Lugar / Parada</option>
                   </select>
                 </div>

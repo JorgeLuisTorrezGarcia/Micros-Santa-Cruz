@@ -137,7 +137,7 @@ export const NearTab: React.FC<NearTabProps> = ({
       <div className="flex items-center justify-between text-xs px-0.5">
         <span className="text-slate-300 font-medium">
           {isLoading
-            ? 'Buscando con RBush spatial index...'
+            ? 'Buscando líneas cercanas...'
             : pointP
             ? `${nearResults.length} línea(s) pasan a menos de ${formatDistance(searchRadiusMeters)}`
             : 'Selecciona un punto en el mapa'}

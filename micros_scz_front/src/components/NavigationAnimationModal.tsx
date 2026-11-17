@@ -445,12 +445,14 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
 
       setToastNotification(
         result.isWhatsAppReady
-          ? '¡Video MP4 H.264 exportado! Compatible al 100% con WhatsApp, CapCut, TikTok e Instagram.'
-          : '¡Video descargado exitosamente listo para edición!'
+          ? '¡Tu video está listo para compartir por WhatsApp, CapCut, TikTok e Instagram!'
+          : '¡Tu video se descargó y está listo para compartir!'
       );
       setTimeout(() => setToastNotification(null), 5000);
     } catch (err) {
       console.error('Error al exportar video:', err);
+      setToastNotification('No pudimos crear el video. Inténtalo nuevamente.');
+      setTimeout(() => setToastNotification(null), 5000);
     } finally {
       setIsRecording(false);
     }
@@ -517,7 +519,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
                 Generando Video MP4 ({videoQuality})
               </h4>
               <p className="text-xs text-slate-400 max-w-sm mb-4">
-                Codificando en formato H.264 Fast-Start con edificios 3D, sombras y HUD para WhatsApp y CapCut...
+                Estamos preparando tu recorrido para compartir. Esto puede tardar un momento.
               </p>
 
               <div className="w-full max-w-xs bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700 mb-2">
@@ -527,7 +529,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
                 />
               </div>
               <div className="flex items-center justify-between w-full max-w-xs text-[11px] text-slate-400 font-mono">
-                <span>Cuadro {recordFrameInfo.curr} / {recordFrameInfo.total}</span>
+                <span>Preparando video...</span>
                 <span>{recordProgress}%</span>
               </div>
             </div>

@@ -5,6 +5,7 @@ import {
   UserProfile,
 } from '../types.ts';
 import { createCommunityPlace } from '../services/communityService.ts';
+import { getUserFriendlyError } from '../services/apiClient.ts';
 import { Crosshair, Lock, Globe, MapPin, Navigation, X } from 'lucide-react';
 
 interface AddPlaceModalProps {
@@ -192,7 +193,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
 
   const handleUseGps = () => {
     if (!navigator.geolocation) {
-      setErrorMsg('Tu navegador no soporta GPS.');
+      setErrorMsg('Este dispositivo no permite compartir tu ubicación. Puedes fijar el punto en el mapa.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -202,7 +203,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
         setErrorMsg(null);
       },
       () => {
-        setErrorMsg('No se pudo obtener ubicación GPS actual.');
+        setErrorMsg('No pudimos obtener tu ubicación. Revisa los permisos o fija el punto en el mapa.');
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -218,7 +219,7 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
     const lat = Number(latStr);
     const lon = Number(lonStr);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      setErrorMsg('Coordenadas inválidas.');
+      setErrorMsg('Ingresa una ubicación válida.');
       return;
     }
 
@@ -265,8 +266,12 @@ export const AddPlaceModal: React.FC<AddPlaceModalProps> = ({
       onCreated();
       onClose();
     } catch (err: unknown) {
+      console.error('Error al guardar el lugar:', err);
       setErrorMsg(
-        err instanceof Error ? err.message : 'No se pudo guardar el lugar.'
+        getUserFriendlyError(
+          err,
+          'No pudimos guardar el lugar. Inténtalo nuevamente.'
+        )
       );
     } finally {
       setIsSubmitting(false);

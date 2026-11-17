@@ -4,6 +4,7 @@ import {
   fetchModerationQueue,
   moderateEntity,
 } from '../services/communityService.ts';
+import { getUserFriendlyError } from '../services/apiClient.ts';
 import { Check, ShieldCheck, X, RefreshCw } from 'lucide-react';
 
 interface ModerationModalProps {
@@ -248,8 +249,12 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({
       const data = await fetchModerationQueue();
       setQueue(data);
     } catch (err: unknown) {
+      console.error('Error al cargar las solicitudes de moderación:', err);
       setErrorMsg(
-        err instanceof Error ? err.message : 'Error cargando cola de moderación.'
+        getUserFriendlyError(
+          err,
+          'No pudimos cargar las solicitudes. Inténtalo nuevamente.'
+        )
       );
     } finally {
       setLoading(false);
@@ -276,7 +281,13 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({
       await loadQueue();
       onChanged();
     } catch (err: unknown) {
-      onToast(err instanceof Error ? err.message : 'Error al moderar');
+      console.error('Error al actualizar una solicitud de moderación:', err);
+      onToast(
+        getUserFriendlyError(
+          err,
+          'No pudimos guardar los cambios. Inténtalo nuevamente.'
+        )
+      );
     }
   };
 

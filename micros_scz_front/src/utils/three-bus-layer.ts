@@ -549,7 +549,7 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
     // Optimal scale multiplier: 2.8x ensures the 3D subject is prominently visible
     // and easily readable in vertical (9:16) video and desktop playback
-    const modelScale = scale * 2.8;
+    const modelScale = scale * 3;
 
     // MapLibre's projection matrix
     const m = new THREE.Matrix4().fromArray(rawMatrix);

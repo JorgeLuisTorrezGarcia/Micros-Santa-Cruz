@@ -461,7 +461,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
         id: `err-${Date.now()}`,
         role: 'model',
         content:
-          'Lo siento, ocurrió un error temporal al comunicarme con el servidor. Por favor intenta de nuevo en un momento.',
+          'No pude responder ahora. Revisa tu conexión e inténtalo nuevamente; mientras tanto, puedes consultar las rutas desde el mapa.',
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMessage]);
