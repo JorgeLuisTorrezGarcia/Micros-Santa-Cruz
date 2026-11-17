@@ -2,14 +2,40 @@ import * as THREE from 'three';
 import * as maplibregl from 'maplibre-gl';
 import type { Coordinates } from '../types.ts';
 
+const BASE_MODEL_SCALE = 3;
+
+function disposeObjectResources(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh || object instanceof THREE.Sprite)) return;
+    if (object instanceof THREE.Mesh) geometries.add(object.geometry);
+    const objectMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    objectMaterials.forEach((material) => {
+      materials.add(material);
+      Object.values(material).forEach((value) => {
+        if (value instanceof THREE.Texture) textures.add(value);
+      });
+    });
+  });
+
+  textures.forEach((texture) => texture.dispose());
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+}
+
 /**
  * ThreeBusLayer:
- * Custom WebGL layer for MapLibre GL JS rendering an ultra-crisp, stylized 3D
- * Microbús cruceño (Toyota Coaster style) and a 3D walking pedestrian avatar.
+ * Custom WebGL layer for MapLibre GL JS rendering the 3D microbus model and a
+ * walking pedestrian avatar, with a procedural vehicle retained as fallback.
  *
  * Uses MapLibre's Mercator unit space multiplied with Three.js camera projection
  * matrix (m.multiply(l)) to ensure zero float-precision loss on modern GPUs.
- * Features dynamic soft shadows, forward headlight projection, and PBR lighting.
+ * Uses a fixed world-space light rig and no shadow-map pass for lower render cost.
  */
 export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
   public id = 'three-bus-3d-layer';
@@ -24,11 +50,24 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
   // 3D Subject Groups (anchored at local (0, 0, 0))
   private busGroup = new THREE.Group();
   private pedestrianGroup = new THREE.Group();
+  private readonly modelMatrix = new THREE.Matrix4();
+  private readonly projectionMatrix = new THREE.Matrix4();
+  private readonly modelScaleVector = new THREE.Vector3();
+  private readonly pedestrianLegs: THREE.Mesh[] = [];
+  private readonly pedestrianArms: THREE.Mesh[] = [];
+  private glbLineMaterials: THREE.MeshStandardMaterial[] = [];
+  private isDisposed = false;
+  private modelLoadPromise: Promise<void> = Promise.resolve();
 
   // Dynamic Mesh References for Real-time Branding Updates
   private busStripeMesh: THREE.Mesh | null = null;
   private roofSignCanvas: HTMLCanvasElement | null = null;
   private roofSignTexture: THREE.CanvasTexture | null = null;
+  private lineLabelCanvas: HTMLCanvasElement | null = null;
+  private lineLabelTexture: THREE.CanvasTexture | null = null;
+  private modelFrontSignCanvas: HTMLCanvasElement | null = null;
+  private modelFrontSignTexture: THREE.Texture | null = null;
+  private modelFrontSignSource: CanvasImageSource | null = null;
   private pedJacketMesh: THREE.Mesh | null = null;
 
   // Animation & Transform State
@@ -38,6 +77,11 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
   private isPedestrianActive = false;
   private currentLineLabel = 'L-72';
   private currentLineColor = '#10b981';
+  private currentElapsedSeconds = 0;
+  private mercatorX = 0;
+  private mercatorY = 0;
+  private mercatorZ = 0;
+  private mercatorMeterScale = 0;
 
   constructor() {
     this.camera.matrixAutoUpdate = false;
@@ -46,30 +90,16 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
   private setupScene() {
     // 1. High-illumination Lighting Rig to guarantee vibrant visibility at all camera angles
-    const ambientLight = new THREE.AmbientLight(0xffffff, 2.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
     this.scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffdf5, 2.8);
+    const sunLight = new THREE.DirectionalLight(0xfffdf5, 2.1);
     sunLight.position.set(25, -35, 60);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
-    sunLight.shadow.camera.near = 1;
-    sunLight.shadow.camera.far = 120;
-    sunLight.shadow.camera.left = -15;
-    sunLight.shadow.camera.right = 15;
-    sunLight.shadow.camera.top = 15;
-    sunLight.shadow.camera.bottom = -15;
-    sunLight.shadow.bias = -0.001;
     this.scene.add(sunLight);
 
-    const skyFillLight = new THREE.DirectionalLight(0xdbeafe, 1.5);
+    const skyFillLight = new THREE.DirectionalLight(0xdbeafe, 0.8);
     skyFillLight.position.set(-25, 35, 40);
     this.scene.add(skyFillLight);
-
-    const groundReflectLight = new THREE.DirectionalLight(0xfef3c7, 0.9);
-    groundReflectLight.position.set(0, 0, -20);
-    this.scene.add(groundReflectLight);
 
     // 2. Build Procedural 3D Microbús Cruceño
     this.buildBusModel();
@@ -79,6 +109,102 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
     this.scene.add(this.busGroup);
     this.scene.add(this.pedestrianGroup);
+  }
+
+  private loadBusModel() {
+    const modelUrl = `${import.meta.env.BASE_URL}assets/microbus_santa_cruz_115.glb`;
+    this.modelLoadPromise = import('three/addons/loaders/GLTFLoader.js')
+      .then(({ GLTFLoader }) => new GLTFLoader().loadAsync(modelUrl))
+      .then((gltf) => {
+        if (this.isDisposed) {
+          disposeObjectResources(gltf.scene);
+          return;
+        }
+
+        gltf.scene.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(gltf.scene);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (size.z <= 0 || size.y <= 0) {
+          throw new Error('El modelo 3D no tiene dimensiones válidas.');
+        }
+
+        const modelRoot = new THREE.Group();
+        modelRoot.rotation.x = Math.PI / 2;
+        modelRoot.scale.setScalar(8.6 / size.z);
+        modelRoot.position.z = (size.y * 8.6) / size.z / 2 - 0.1;
+        gltf.scene.position.sub(center);
+        // The GLB's nose points opposite the map's local forward axis.
+        gltf.scene.rotation.y = Math.PI;
+        modelRoot.add(gltf.scene);
+
+        this.glbLineMaterials = [];
+        gltf.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const materials = Array.isArray(object.material)
+            ? object.material
+            : [object.material];
+          materials.forEach((material) => {
+            if (material instanceof THREE.MeshStandardMaterial && material.name === 'verde') {
+              this.glbLineMaterials.push(material);
+            }
+            if (
+              material instanceof THREE.MeshStandardMaterial &&
+              material.name === 'frente' &&
+              material.map &&
+              !this.modelFrontSignTexture
+            ) {
+              const image = material.map.image as CanvasImageSource & {
+                width: number;
+                height: number;
+              };
+              const canvas = document.createElement('canvas');
+              canvas.width = image.width;
+              canvas.height = image.height;
+              const context = canvas.getContext('2d');
+              if (!context) return;
+              context.drawImage(image, 0, 0, canvas.width, canvas.height);
+              this.modelFrontSignCanvas = canvas;
+              this.modelFrontSignTexture = material.map;
+              this.modelFrontSignSource = image;
+              material.map.image = canvas;
+              material.map.needsUpdate = true;
+            }
+          });
+        });
+
+        disposeObjectResources(this.busGroup);
+        this.busGroup.clear();
+        this.busStripeMesh = null;
+        this.busGroup.add(modelRoot);
+        this.createRoofSign(2.6, 3.55);
+        this.createLineLabelBillboard(4.25);
+        this.updateRoofSignCanvas();
+        this.updateLineLabelCanvas();
+        this.updateBusLineColor();
+        this.map?.triggerRepaint();
+      })
+      .catch((error: unknown) => {
+        if (!this.isDisposed) {
+          console.warn(
+            'No se pudo cargar el modelo 3D del micro; se usará el modelo de respaldo.',
+            error
+          );
+        }
+      });
+  }
+
+  public whenModelReady(): Promise<void> {
+    return this.modelLoadPromise;
+  }
+
+  private updateMercatorPosition() {
+    if (!this.map) return;
+    const mercator = maplibregl.MercatorCoordinate.fromLngLat(this.currentCoords, 0);
+    this.mercatorX = mercator.x;
+    this.mercatorY = mercator.y;
+    this.mercatorZ = mercator.z;
+    this.mercatorMeterScale = mercator.meterInMercatorCoordinateUnits();
   }
 
   /**
@@ -103,8 +229,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       metalness: 0.12,
     });
     const lowerBody = new THREE.Mesh(lowerBodyGeo, lowerBodyMat);
-    lowerBody.castShadow = true;
-    lowerBody.receiveShadow = true;
     lowerBody.position.set(0, 0, height * 0.26 + 0.5);
     this.busGroup.add(lowerBody);
 
@@ -118,7 +242,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       emissiveIntensity: 0.28,
     });
     this.busStripeMesh = new THREE.Mesh(stripeGeo, stripeMat);
-    this.busStripeMesh.castShadow = true;
     this.busStripeMesh.position.set(0, 0, height * 0.28 + 0.5);
     this.busGroup.add(this.busStripeMesh);
 
@@ -130,7 +253,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       metalness: 0.88,
     });
     const windows = new THREE.Mesh(windowGeo, windowMat);
-    windows.castShadow = true;
     windows.position.set(0, 0, height * 0.68 + 0.5);
     this.busGroup.add(windows);
 
@@ -142,7 +264,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       metalness: 0.15,
     });
     const roof = new THREE.Mesh(roofGeo, roofMat);
-    roof.castShadow = true;
     roof.position.set(0, 0, height + 0.55);
     this.busGroup.add(roof);
 
@@ -154,7 +275,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       metalness: 0.65,
     });
     const acUnit = new THREE.Mesh(acBaseGeo, acMat);
-    acUnit.castShadow = true;
     acUnit.position.set(0, -0.6, height + 0.82);
     this.busGroup.add(acUnit);
 
@@ -180,13 +300,11 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
     const frontBumperGeo = new THREE.BoxGeometry(width + 0.1, 0.45, 0.45);
     const frontBumper = new THREE.Mesh(frontBumperGeo, bumperMat);
-    frontBumper.castShadow = true;
     frontBumper.position.set(0, length / 2 + 0.2, 0.45);
     this.busGroup.add(frontBumper);
 
     const rearBumperGeo = new THREE.BoxGeometry(width + 0.1, 0.45, 0.45);
     const rearBumper = new THREE.Mesh(rearBumperGeo, bumperMat);
-    rearBumper.castShadow = true;
     rearBumper.position.set(0, -length / 2 - 0.2, 0.45);
     this.busGroup.add(rearBumper);
 
@@ -218,7 +336,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       const tire = new THREE.Mesh(tireGeo, tireMat);
       tire.rotation.z = Math.PI / 2;
       tire.position.set(wx, wy, wz);
-      tire.castShadow = true;
       this.busGroup.add(tire);
 
       const hubcap = new THREE.Mesh(hubcapGeo, hubcapMat);
@@ -274,6 +391,7 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
     // --- 9. Front Illuminated Route Sign (Canvas Texture) ---
     this.createRoofSign(width);
+    this.createLineLabelBillboard();
 
     // --- 10. Soft Asphalt Ground Shadow Disc ---
     const shadowGeo = new THREE.PlaneGeometry(width * 1.5, length * 1.35);
@@ -285,14 +403,13 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     });
     const shadow = new THREE.Mesh(shadowGeo, shadowMat);
     shadow.position.set(0, 0, 0.08);
-    shadow.receiveShadow = true;
     this.busGroup.add(shadow);
   }
 
   /**
    * Builds the illuminated front route destination sign.
    */
-  private createRoofSign(width: number) {
+  private createRoofSign(width: number, roofHeight = 3.92) {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 192;
@@ -308,10 +425,9 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
       transparent: false,
     });
 
-    const signGeo = new THREE.BoxGeometry(width * 0.85, 0.35, 0.75);
+    const signGeo = new THREE.PlaneGeometry(width, 1.0);
     const signMesh = new THREE.Mesh(signGeo, signMat);
-    signMesh.position.set(0, 3.8, 2.9);
-    signMesh.castShadow = true;
+    signMesh.position.set(0, 0, roofHeight);
     this.busGroup.add(signMesh);
   }
 
@@ -342,6 +458,91 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     if (this.roofSignTexture) {
       this.roofSignTexture.needsUpdate = true;
     }
+    this.updateModelFrontSign();
+  }
+
+  private createLineLabelBillboard(height = 5.4) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 144;
+    this.lineLabelCanvas = canvas;
+    this.updateLineLabelCanvas();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    this.lineLabelTexture = texture;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.position.set(0, 0, height);
+    sprite.scale.set(4.8, 1.35, 1);
+    sprite.renderOrder = 10;
+    this.busGroup.add(sprite);
+  }
+
+  private updateLineLabelCanvas() {
+    const canvas = this.lineLabelCanvas;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#0f172a';
+    context.strokeStyle = this.currentLineColor;
+    context.lineWidth = 8;
+    context.beginPath();
+    context.roundRect(8, 8, 496, 128, 64);
+    context.fill();
+    context.stroke();
+
+    context.fillStyle = this.currentLineColor;
+    context.beginPath();
+    context.arc(56, 72, 16, 0, Math.PI * 2);
+    context.fill();
+
+    const label = this.currentLineLabel.replace('Línea ', 'L-');
+    context.fillStyle = '#ffffff';
+    context.font = `900 ${Math.min(76, 300 / label.length)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(label, 280, 72, 400);
+    if (this.lineLabelTexture) this.lineLabelTexture.needsUpdate = true;
+  }
+
+  private updateModelFrontSign() {
+    if (!this.modelFrontSignCanvas || !this.modelFrontSignSource) return;
+    const canvas = this.modelFrontSignCanvas;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(this.modelFrontSignSource, 0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#171d19';
+    ctx.fillRect(canvas.width * 0.14, canvas.height * 0.045, canvas.width * 0.72, canvas.height * 0.14);
+    ctx.strokeStyle = '#4b5a4f';
+    ctx.lineWidth = Math.max(1, canvas.width * 0.002);
+    ctx.strokeRect(canvas.width * 0.14, canvas.height * 0.045, canvas.width * 0.72, canvas.height * 0.14);
+    ctx.fillStyle = '#39d05e';
+    ctx.font = `bold ${Math.round(canvas.width * 0.1)}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const routeLabel = this.currentLineLabel.replace('Línea ', 'L-').replace(/^L-/, 'LINEA ');
+    ctx.fillText(routeLabel, canvas.width / 2, canvas.height * 0.11, canvas.width * 0.68);
+    if (this.modelFrontSignTexture) this.modelFrontSignTexture.needsUpdate = true;
+  }
+
+  private updateBusLineColor() {
+    if (this.busStripeMesh) {
+      const material = this.busStripeMesh.material as THREE.MeshStandardMaterial;
+      material.color.set(this.currentLineColor);
+      material.emissive.set(this.currentLineColor);
+    }
+    this.glbLineMaterials.forEach((material) => material.color.set(this.currentLineColor));
   }
 
   /**
@@ -364,7 +565,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.set(0, 0, 0.1);
-    ring.receiveShadow = true;
     this.pedestrianGroup.add(ring);
 
     const innerCircleGeo = new THREE.CircleGeometry(1.0, 32);
@@ -389,24 +589,22 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     const leftLeg = new THREE.Mesh(legGeo, legMat);
     leftLeg.rotation.x = -Math.PI / 10;
     leftLeg.position.set(-0.35, 0.25, 0.85);
-    leftLeg.castShadow = true;
+    this.pedestrianLegs.push(leftLeg);
     this.pedestrianGroup.add(leftLeg);
 
     const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
     leftShoe.position.set(-0.35, 0.45, 0.16);
-    leftShoe.castShadow = true;
     this.pedestrianGroup.add(leftShoe);
 
     // Right leg backward
     const rightLeg = new THREE.Mesh(legGeo, legMat);
     rightLeg.rotation.x = Math.PI / 10;
     rightLeg.position.set(0.35, -0.25, 0.85);
-    rightLeg.castShadow = true;
+    this.pedestrianLegs.push(rightLeg);
     this.pedestrianGroup.add(rightLeg);
 
     const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
     rightShoe.position.set(0.35, -0.45, 0.16);
-    rightShoe.castShadow = true;
     this.pedestrianGroup.add(rightShoe);
 
     // --- Torso & Jacket ---
@@ -418,7 +616,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     });
     this.pedJacketMesh = new THREE.Mesh(torsoGeo, jacketMat);
     this.pedJacketMesh.position.set(0, 0, 2.05);
-    this.pedJacketMesh.castShadow = true;
     this.pedestrianGroup.add(this.pedJacketMesh);
 
     // Backpack on the back (-Y)
@@ -426,7 +623,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     const packMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
     const pack = new THREE.Mesh(packGeo, packMat);
     pack.position.set(0, -0.45, 2.05);
-    pack.castShadow = true;
     this.pedestrianGroup.add(pack);
 
     // --- Arms (Walking Swing) ---
@@ -436,13 +632,13 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     const leftArm = new THREE.Mesh(armGeo, armMat);
     leftArm.rotation.x = Math.PI / 8;
     leftArm.position.set(-0.7, -0.2, 1.85);
-    leftArm.castShadow = true;
+    this.pedestrianArms.push(leftArm);
     this.pedestrianGroup.add(leftArm);
 
     const rightArm = new THREE.Mesh(armGeo, armMat);
     rightArm.rotation.x = -Math.PI / 8;
     rightArm.position.set(0.7, 0.2, 1.85);
-    rightArm.castShadow = true;
+    this.pedestrianArms.push(rightArm);
     this.pedestrianGroup.add(rightArm);
 
     // --- Head & Stylized Baseball Cap ---
@@ -450,7 +646,6 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     const headMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.4 });
     const head = new THREE.Mesh(headGeo, headMat);
     head.position.set(0, 0, 2.95);
-    head.castShadow = true;
     this.pedestrianGroup.add(head);
 
     // Cap Dome & Visor
@@ -458,13 +653,11 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     const capMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const cap = new THREE.Mesh(capGeo, capMat);
     cap.position.set(0, 0, 3.02);
-    cap.castShadow = true;
     this.pedestrianGroup.add(cap);
 
     const visorGeo = new THREE.BoxGeometry(0.65, 0.45, 0.08);
     const visor = new THREE.Mesh(visorGeo, capMat);
     visor.position.set(0, 0.48, 3.02);
-    visor.castShadow = true;
     this.pedestrianGroup.add(visor);
 
     // --- Floating Destination Diamond / Aura Beacon Above Head ---
@@ -488,18 +681,25 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     isBus: boolean;
     lineLabel: string;
     lineColor: string;
+    elapsedSeconds?: number;
   }) {
     this.currentCoords = params.coords;
     this.currentBearing = params.bearingDeg;
     this.isBusActive = params.isBus;
     this.isPedestrianActive = !params.isBus;
+    this.currentElapsedSeconds = params.elapsedSeconds ?? 0;
+    this.updateMercatorPosition();
+    const gaitSwing = Math.sin(this.currentElapsedSeconds * Math.PI * 4) * 0.35;
+    this.pedestrianLegs[0].rotation.x = -Math.PI / 10 + gaitSwing;
+    this.pedestrianLegs[1].rotation.x = Math.PI / 10 - gaitSwing;
+    this.pedestrianArms[0].rotation.x = Math.PI / 8 - gaitSwing * 0.7;
+    this.pedestrianArms[1].rotation.x = -Math.PI / 8 + gaitSwing * 0.7;
 
     if (params.lineColor !== this.currentLineColor) {
       this.currentLineColor = params.lineColor;
-      if (this.busStripeMesh) {
-        (this.busStripeMesh.material as THREE.MeshStandardMaterial).color.set(params.lineColor);
-        (this.busStripeMesh.material as THREE.MeshStandardMaterial).emissive.set(params.lineColor);
-      }
+      this.updateBusLineColor();
+      this.updateRoofSignCanvas();
+      this.updateLineLabelCanvas();
       if (this.pedJacketMesh) {
         (this.pedJacketMesh.material as THREE.MeshStandardMaterial).color.set(params.lineColor);
       }
@@ -508,35 +708,32 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     if (params.lineLabel !== this.currentLineLabel) {
       this.currentLineLabel = params.lineLabel;
       this.updateRoofSignCanvas();
+      this.updateLineLabelCanvas();
     }
+
+    this.map?.triggerRepaint();
   }
 
   // --- MapLibre CustomLayerInterface methods ---
 
   public onAdd(map: maplibregl.Map, gl: WebGL2RenderingContext) {
+    this.isDisposed = false;
     this.map = map;
+    this.updateMercatorPosition();
     this.renderer = new THREE.WebGLRenderer({
       canvas: map.getCanvas(),
       context: gl,
-      antialias: true,
+      antialias: false,
     });
     this.renderer.autoClear = false;
     this.renderer.autoClearDepth = false;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.enabled = false;
+    this.loadBusModel();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public render: maplibregl.CustomLayerInterface['render'] = (_gl: WebGL2RenderingContext, options: any) => {
     if (!this.map || !this.renderer) return;
-
-    // Convert geographic coordinates [lon, lat] to Mercator coordinates
-    const mercator = maplibregl.MercatorCoordinate.fromLngLat(
-      this.currentCoords,
-      0
-    );
-
-    const scale = mercator.meterInMercatorCoordinateUnits();
 
     // MapLibre GL v6 passes options containing defaultProjectionData.mainMatrix or modelViewProjectionMatrix
     const rawMatrix =
@@ -547,25 +744,19 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
 
     if (!rawMatrix) return;
 
-    // Optimal scale multiplier: 2.8x ensures the 3D subject is prominently visible
-    // and easily readable in vertical (9:16) video and desktop playback
-    const modelScale = scale * 3;
-
-    // MapLibre's projection matrix
-    const m = new THREE.Matrix4().fromArray(rawMatrix);
-
-    // Compute model transform matrix l:
-    // 1. Translate to Mercator coordinate
-    // 2. Scale by (modelScale, -modelScale, modelScale) to invert Y southwards
-    // 3. Rotate around Z axis by vehicle bearing (-rad)
+    const zoomScale = Math.min(6, Math.max(0.6, Math.pow(2, 17 - this.map.getZoom())));
+    const modelScale = this.mercatorMeterScale * BASE_MODEL_SCALE * zoomScale;
     const rad = (this.currentBearing * Math.PI) / 180;
-    const l = new THREE.Matrix4()
-      .makeTranslation(mercator.x, mercator.y, mercator.z)
-      .scale(new THREE.Vector3(modelScale, -modelScale, modelScale))
-      .multiply(new THREE.Matrix4().makeRotationZ(-rad));
-
-    // Bind combined projection matrix to Three.js camera
-    this.camera.projectionMatrix = m.multiply(l);
+    this.modelMatrix
+      .makeTranslation(this.mercatorX, this.mercatorY, this.mercatorZ)
+      .scale(this.modelScaleVector.set(modelScale, -modelScale, modelScale));
+    this.projectionMatrix.fromArray(rawMatrix).multiply(this.modelMatrix);
+    this.camera.projectionMatrix = this.projectionMatrix;
+    this.busGroup.rotation.z = -rad;
+    this.pedestrianGroup.rotation.z = -rad;
+    this.busGroup.rotation.x = this.isBusActive
+      ? Math.sin(this.currentElapsedSeconds * Math.PI * 2) * 0.012
+      : 0;
 
     // Toggle active subject
     this.busGroup.visible = this.isBusActive;
@@ -574,15 +765,26 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
     // Render Three.js overlay
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
-
-    this.map.triggerRepaint();
   };
 
   public onRemove() {
+    this.isDisposed = true;
     if (this.renderer) {
       this.renderer.dispose();
       this.renderer = null;
     }
+    disposeObjectResources(this.scene);
+    this.scene.clear();
+    this.glbLineMaterials = [];
+    this.pedestrianLegs.length = 0;
+    this.pedestrianArms.length = 0;
+    this.roofSignCanvas = null;
+    this.roofSignTexture = null;
+    this.lineLabelCanvas = null;
+    this.lineLabelTexture = null;
+    this.modelFrontSignCanvas = null;
+    this.modelFrontSignTexture = null;
+    this.modelFrontSignSource = null;
     this.map = null;
   }
 }

@@ -24,6 +24,7 @@ import {
 import {
   recordNavigationCanvasVideo,
   downloadVideoBlob,
+  getVideoDimensions,
 } from '../utils/navigation-video-recorder.ts';
 
 interface NavigationAnimationModalProps {
@@ -401,15 +402,20 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
 
   // Export video
   const handleExportVideo = async () => {
-    if (!canvasHandleRef.current || !trajectory) return;
-    const canvas = canvasHandleRef.current.getCanvas();
-    if (!canvas) return;
+    const canvasHandle = canvasHandleRef.current;
+    if (!canvasHandle || !trajectory) return;
 
     setIsPlaying(false);
     setIsRecording(true);
     setRecordProgress(0);
 
     try {
+      const { width, height } = getVideoDimensions(videoQuality, aspectRatio);
+      const canvas = await canvasHandle.prepareExport(
+        width,
+        height,
+        (fraction) => trajectory.sampleAtProgress(fraction)
+      );
       const lineName = trip?.legs[0]?.routeLabel?.replace(/\s+/g, '-').toLowerCase() || 'micro';
 
       const result = await recordNavigationCanvasVideo({
@@ -424,9 +430,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
         },
         onFrameStep: async (fraction) => {
           currentFractionRef.current = fraction;
-          setProgress(fraction);
-          canvasHandleRef.current?.triggerRepaint();
-          await new Promise((r) => requestAnimationFrame(r));
+          await canvasHandle.seek(fraction);
         },
         getOverlayData: () => {
           const sample = trajectory.sampleAtProgress(currentFractionRef.current);
@@ -434,7 +438,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
             lineLabel: sample.lineLabel,
             lineColor: sample.lineColor,
             instruction: sample.instruction,
-            watermarkText: 'Micros Santa Cruz · Recorrido Oficial',
+            watermarkText: 'Micros Santa Cruz',
             bearingDeg: sample.bearing,
           };
         },
@@ -454,6 +458,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
       setToastNotification('No pudimos crear el video. Inténtalo nuevamente.');
       setTimeout(() => setToastNotification(null), 5000);
     } finally {
+      canvasHandle.finishExport();
       setIsRecording(false);
     }
   };
@@ -505,7 +510,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
               sample={currentSample}
               mapStyleUrl={mapStyleUrl}
               aspectRatio={aspectRatio}
-              watermarkText="Micros Santa Cruz · Recorrido Oficial"
+              watermarkText="Micros Santa Cruz"
             />
           </div>
 

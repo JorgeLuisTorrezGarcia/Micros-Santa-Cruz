@@ -3,10 +3,18 @@ import * as maplibregl from 'maplibre-gl';
 import type { Coordinates, TripOption } from '../types.ts';
 import { ThreeBusLayer } from '../utils/three-bus-layer.ts';
 import type { AnimationSample } from '../utils/animation-trajectory.ts';
+import { waitForIdle } from '../utils/map-wait.ts';
 
 export interface NavigationMapCanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
   triggerRepaint: () => void;
+  prepareExport: (
+    width: number,
+    height: number,
+    sampleAtProgress: (fraction: number) => AnimationSample
+  ) => Promise<HTMLCanvasElement>;
+  seek: (fraction: number) => Promise<void>;
+  finishExport: () => void;
 }
 
 interface NavigationMapCanvasProps {
@@ -17,6 +25,35 @@ interface NavigationMapCanvasProps {
   watermarkText?: string;
 }
 
+function synchronizeMapToSample(
+  map: maplibregl.Map,
+  layer: ThreeBusLayer,
+  sample: AnimationSample
+) {
+  layer.updateState({
+    coords: sample.coords,
+    bearingDeg: sample.bearing,
+    isBus: sample.isBus,
+    lineLabel: sample.lineLabel,
+    lineColor: sample.lineColor,
+    elapsedSeconds: sample.elapsedSeconds,
+  });
+  const trackerSource = map.getSource(
+    'animation-vehicle-tracker-source'
+  ) as maplibregl.GeoJSONSource | undefined;
+  trackerSource?.setData({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: sample.coords },
+    properties: { color: sample.lineColor },
+  });
+  map.jumpTo({
+    center: sample.coords,
+    bearing: sample.cameraBearing,
+    pitch: sample.cameraPitch,
+    zoom: sample.cameraZoom,
+  });
+}
+
 function initializeNavigationMap(
   map: maplibregl.Map,
   trip: TripOption,
@@ -24,7 +61,7 @@ function initializeNavigationMap(
   startCoords: Coordinates,
   mapStyleUrl: string,
   threeLayerRef: React.MutableRefObject<ThreeBusLayer | null>,
-  setMapReady: React.Dispatch<React.SetStateAction<boolean>>
+  onReady: () => void
 ) {
         // --- 1. Add GeoJSON source for calculated trip route ---
         const routeFeatures: GeoJSON.Feature[] = [];
@@ -75,7 +112,7 @@ function initializeNavigationMap(
                   ? [
                       'interpolate',
                       ['linear'],
-                      ['get', 'render_height'],
+                      ['coalesce', ['get', 'render_height'], 9],
                       0,
                       '#1e293b',
                       25,
@@ -86,7 +123,7 @@ function initializeNavigationMap(
                   : [
                       'interpolate',
                       ['linear'],
-                      ['get', 'render_height'],
+                      ['coalesce', ['get', 'render_height'], 9],
                       0,
                       '#e2e8f0',
                       25,
@@ -113,6 +150,20 @@ function initializeNavigationMap(
             }
           );
         }
+
+        map.addLayer({
+          id: 'anim-bus-glow',
+          type: 'line',
+          source: 'animation-route-source',
+          filter: ['==', ['get', 'isWalk'], false],
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': 14,
+            'line-blur': 7,
+            'line-opacity': 0.3,
+          },
+        });
 
         // Route casing / road highlight
         map.addLayer({
@@ -323,8 +374,9 @@ function initializeNavigationMap(
         const threeLayer = new ThreeBusLayer();
         threeLayerRef.current = threeLayer;
         map.addLayer(threeLayer);
+        synchronizeMapToSample(map, threeLayer, sample);
 
-        setMapReady(true);
+        onReady();
 }
 
 export const NavigationMapCanvas = forwardRef<
@@ -344,16 +396,161 @@ export const NavigationMapCanvas = forwardRef<
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const threeLayerRef = useRef<ThreeBusLayer | null>(null);
+    const exportMapRef = useRef<maplibregl.Map | null>(null);
+    const exportLayerRef = useRef<ThreeBusLayer | null>(null);
+    const exportContainerRef = useRef<HTMLDivElement | null>(null);
+    const exportSamplerRef = useRef<((fraction: number) => AnimationSample) | null>(null);
+    const isMountedRef = useRef(false);
     const [mapReady, setMapReady] = useState(false);
+    const [previewGeneration, setPreviewGeneration] = useState(0);
 
-    useImperativeHandle(ref, () => ({
-      getCanvas: () => {
-        return mapRef.current?.getCanvas() || null;
-      },
-      triggerRepaint: () => {
-        mapRef.current?.triggerRepaint();
-      },
-    }));
+    const finishExport = () => {
+      const hadExportMap = Boolean(exportMapRef.current || exportContainerRef.current);
+      exportMapRef.current?.remove();
+      exportMapRef.current = null;
+      exportLayerRef.current = null;
+      exportContainerRef.current?.remove();
+      exportContainerRef.current = null;
+      exportSamplerRef.current = null;
+      if (hadExportMap && !mapRef.current && isMountedRef.current) {
+        setMapReady(false);
+        setPreviewGeneration((generation) => generation + 1);
+      }
+    };
+
+    const prepareExport = async (
+      width: number,
+      height: number,
+      sampleAtProgress: (fraction: number) => AnimationSample
+    ) => {
+      finishExport();
+      const previewMap = mapRef.current;
+      mapRef.current = null;
+      threeLayerRef.current = null;
+      setMapReady(false);
+      previewMap?.remove();
+
+      const container = document.createElement('div');
+      Object.assign(container.style, {
+        position: 'fixed',
+        left: '-20000px',
+        top: '0',
+        width: `${width}px`,
+        height: `${height}px`,
+        overflow: 'hidden',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(container);
+      exportContainerRef.current = container;
+      exportSamplerRef.current = sampleAtProgress;
+
+      const initialSample = sampleAtProgress(0);
+      const mapOptions: maplibregl.MapOptions = {
+        container,
+        style: mapStyleUrl,
+        center: initialSample.coords,
+        zoom: initialSample.cameraZoom,
+        pitch: initialSample.cameraPitch,
+        bearing: initialSample.cameraBearing,
+        maxPitch: 75,
+        attributionControl: false,
+        canvasContextAttributes: { preserveDrawingBuffer: true, antialias: false },
+        pixelRatio: 1,
+        maxCanvasSize: [width, height],
+        interactive: false,
+        fadeDuration: 0,
+      };
+
+      const map = new maplibregl.Map(mapOptions);
+      const layerRef: React.MutableRefObject<ThreeBusLayer | null> = { current: null };
+      exportMapRef.current = map;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          let loadTimeout: ReturnType<typeof setTimeout>;
+          const handleMapLoad = () => {
+            clearTimeout(loadTimeout);
+            map.off('load', handleMapLoad);
+            try {
+              initializeNavigationMap(
+                map,
+                trip,
+                initialSample,
+                initialSample.coords,
+                mapStyleUrl,
+                layerRef,
+                resolve
+              );
+            } catch (error) {
+              reject(error);
+            }
+          };
+          loadTimeout = setTimeout(() => {
+            map.off('load', handleMapLoad);
+            reject(new Error('El mapa de exportación tardó demasiado en iniciar.'));
+          }, 15000);
+          map.on('load', handleMapLoad);
+        });
+
+        const layer = layerRef.current;
+        if (!layer) throw new Error('No se pudo preparar la capa 3D para exportar.');
+        exportLayerRef.current = layer;
+        await layer.whenModelReady();
+
+        map.setPixelRatio(0.5);
+        for (const fraction of [0, 0.5, 1]) {
+          synchronizeMapToSample(map, layer, sampleAtProgress(fraction));
+          await waitForIdle(map, 750);
+        }
+        map.setPixelRatio(1);
+        synchronizeMapToSample(map, layer, initialSample);
+
+        if (!(await waitForIdle(map, 15000))) {
+          throw new Error('El mapa no terminó de cargar antes de exportar.');
+        }
+
+        const canvas = map.getCanvas();
+        if (canvas.width !== width || canvas.height !== height) {
+          throw new Error('El mapa no alcanzó la resolución solicitada.');
+        }
+        return canvas;
+      } catch (error) {
+        finishExport();
+        throw error;
+      }
+    };
+
+    const seekExport = async (fraction: number) => {
+      const map = exportMapRef.current;
+      const layer = exportLayerRef.current;
+      const sampler = exportSamplerRef.current;
+      if (!map || !layer || !sampler) {
+        throw new Error('La exportación del mapa no está preparada.');
+      }
+
+      synchronizeMapToSample(map, layer, sampler(fraction));
+      await waitForIdle(map);
+    };
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        getCanvas: () => mapRef.current?.getCanvas() || null,
+        triggerRepaint: () => mapRef.current?.triggerRepaint(),
+        prepareExport,
+        seek: seekExport,
+        finishExport,
+      }),
+      [trip, mapStyleUrl]
+    );
+
+    useEffect(() => {
+      isMountedRef.current = true;
+      return () => {
+        isMountedRef.current = false;
+        finishExport();
+      };
+    }, []);
 
     // Initialize MapLibre in 3D pitch/bearing mode
     useEffect(() => {
@@ -361,8 +558,7 @@ export const NavigationMapCanvas = forwardRef<
 
       const startCoords = sample.coords;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mapOptions: any = {
+      const mapOptions: maplibregl.MapOptions = {
         container: containerRef.current,
         style: mapStyleUrl,
         center: startCoords,
@@ -371,14 +567,14 @@ export const NavigationMapCanvas = forwardRef<
         bearing: sample.cameraBearing || 0,
         maxPitch: 75,
         attributionControl: false,
-        preserveDrawingBuffer: true, // Crucial for WebGL canvas stream frame video export
+        canvasContextAttributes: { preserveDrawingBuffer: false, antialias: false },
       };
 
       const map = new maplibregl.Map(mapOptions);
       mapRef.current = map;
 
       const handleMapLoad = () => {
-        initializeNavigationMap(map, trip, sample, startCoords, mapStyleUrl, threeLayerRef, setMapReady);
+        initializeNavigationMap(map, trip, sample, startCoords, mapStyleUrl, threeLayerRef, () => setMapReady(true));
       };
       map.on('load', handleMapLoad);
 
@@ -390,7 +586,7 @@ export const NavigationMapCanvas = forwardRef<
         }
         threeLayerRef.current = null;
       };
-    }, [mapStyleUrl]);
+    }, [mapStyleUrl, previewGeneration]);
 
     // Synchronize 3D Vehicle, Live Ground Beacon & Camera with Animation Sample
     useEffect(() => {
@@ -398,36 +594,8 @@ export const NavigationMapCanvas = forwardRef<
 
       const map = mapRef.current;
 
-      // 1. Update Three.js 3D Model position & orientation
-      if (threeLayerRef.current) {
-        threeLayerRef.current.updateState({
-          coords: sample.coords,
-          bearingDeg: sample.bearing,
-          isBus: sample.isBus,
-          lineLabel: sample.lineLabel,
-          lineColor: sample.lineColor,
-        });
-      }
-
-      // 2. Update Ground Pulsing Beacon beneath the 3D model
-      const trackerSource = map.getSource(
-        'animation-vehicle-tracker-source'
-      ) as maplibregl.GeoJSONSource | undefined;
-      if (trackerSource) {
-        trackerSource.setData({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: sample.coords },
-          properties: { color: sample.lineColor },
-        });
-      }
-
-      // 3. Smooth Camera Follow with Pitch and Bearing
-      map.jumpTo({
-        center: sample.coords,
-        bearing: sample.cameraBearing,
-        pitch: sample.cameraPitch,
-        zoom: sample.cameraZoom,
-      });
+      const layer = threeLayerRef.current;
+      if (layer) synchronizeMapToSample(map, layer, sample);
     }, [sample, mapReady]);
 
     return (
@@ -454,12 +622,17 @@ export const NavigationMapCanvas = forwardRef<
         </div>
 
         {/* Discrete Brand Watermark for CapCut B-roll (Bottom Safe Zone) */}
-        <div className="absolute bottom-3 left-4 z-20 pointer-events-none flex items-center gap-2 opacity-90">
-          <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center text-[10px] font-black text-slate-950 shadow-md">
-            SCZ
+        <div className="absolute bottom-2 left-4 z-20 pointer-events-none flex flex-col items-start gap-0.5 opacity-90">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center text-[10px] font-black text-slate-950 shadow-md">
+              SCZ
+            </div>
+            <span className="text-[11px] font-semibold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              {watermarkText}
+            </span>
           </div>
-          <span className="text-[11px] font-semibold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            {watermarkText}
+          <span className="ml-7 text-[8px] font-medium text-slate-200 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            © OpenStreetMap contributors · OpenFreeMap
           </span>
         </div>
 

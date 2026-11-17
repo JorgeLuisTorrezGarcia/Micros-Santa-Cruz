@@ -59,6 +59,15 @@ export function interpolateAngle(a: number, b: number, t: number): number {
   return (a + diff * t + 360) % 360;
 }
 
+function smoothStep(value: number): number {
+  const clamped = Math.max(0, Math.min(1, value));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+function interpolateNumber(from: number, to: number, fraction: number): number {
+  return from + (to - from) * fraction;
+}
+
 /**
  * Builds a dense continuous trajectory from a TripOption.
  */
@@ -239,8 +248,8 @@ export class RouteAnimationTrajectory {
         coords: w.coords,
         bearing: w.bearing,
         cameraBearing: w.bearing,
-        cameraPitch: 55,
-        cameraZoom: 16.5,
+        cameraPitch: clampedT === 0 ? 0 : 55,
+        cameraZoom: clampedT === 0 ? 14.5 : 16.5,
         phase: w.phase,
         lineLabel: w.lineLabel,
         lineColor: w.lineColor,
@@ -258,8 +267,8 @@ export class RouteAnimationTrajectory {
         coords: last.coords,
         bearing: last.bearing,
         cameraBearing: last.bearing,
-        cameraPitch: 55,
-        cameraZoom: 17.2,
+        cameraPitch: 40,
+        cameraZoom: 14.5,
         phase: 'arrival',
         lineLabel: last.lineLabel,
         lineColor: last.lineColor,
@@ -314,20 +323,41 @@ export class RouteAnimationTrajectory {
     const activeInstruction = segFraction > 0.5 ? w2.instruction : w1.instruction;
 
     // Zoom adjustments based on phase (closer for walking and transfers, wider for bus cruising)
-    const zoom =
+    const phaseZoom =
       activePhase === 'walk_start' || activePhase === 'walk_end'
-        ? 17.2
+        ? 30.0 // 17.0
         : activePhase === 'transfer'
-        ? 17.5
+        ? 17.2
         : 16.6;
 
-    // Dynamic pitch: ~56 degrees for cinematic 3D perspective
-    const pitch = activePhase === 'transfer' ? 50 : 56;
+    const phasePitch =
+      activePhase === 'transfer'
+        ? 65
+        : activePhase === 'walk_start' || activePhase === 'walk_end'
+        ? 62
+        : 55;
+    const introBlend = smoothStep(clampedT / 0.12);
+    const outroBlend = smoothStep((clampedT - 0.82) / 0.18);
+    const pitch = interpolateNumber(
+      interpolateNumber(0, phasePitch, introBlend),
+      40,
+      outroBlend
+    );
+    const zoom = interpolateNumber(
+      interpolateNumber(14.5, phaseZoom, introBlend),
+      14.5,
+      outroBlend
+    );
+    const orbitOffset =
+      activePhase === 'transfer'
+        ? 35 * Math.sin(clampedT * Math.PI)
+        : 5 * Math.sin(clampedT * Math.PI * 2);
+    const cinematicBearing = (cameraBearing + orbitOffset + 360) % 360;
 
     return {
       coords: interpolatedCoords,
       bearing: vehicleBearing,
-      cameraBearing,
+      cameraBearing: cinematicBearing,
       cameraPitch: pitch,
       cameraZoom: zoom,
       phase: activePhase,

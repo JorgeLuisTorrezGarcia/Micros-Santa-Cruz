@@ -31,6 +31,23 @@ export interface VideoExportResult {
   isWhatsAppReady: boolean;
 }
 
+export interface VideoDimensions {
+  width: number;
+  height: number;
+}
+
+export function getVideoDimensions(
+  quality: '1080p' | '720p',
+  aspectRatio: '9:16' | '16:9'
+): VideoDimensions {
+  const isPortrait = aspectRatio === '9:16';
+  const isFullHd = quality === '1080p';
+  return {
+    width: isPortrait ? (isFullHd ? 1080 : 720) : (isFullHd ? 1920 : 1280),
+    height: isPortrait ? (isFullHd ? 1920 : 1280) : (isFullHd ? 1080 : 720),
+  };
+}
+
 /**
  * Draws crisp, scalable HUD elements (line name, instruction pill, and watermark)
  * directly into the composite canvas so they are permanently burned into the exported video frames.
@@ -109,7 +126,7 @@ function renderHUDOnCanvas(
   ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeH / 2);
 
   // --- 2. Bottom Discrete Brand Watermark ---
-  const wmText = data.watermarkText || 'Micros Santa Cruz · Recorrido Oficial';
+  const wmText = data.watermarkText || 'Micros Santa Cruz';
   const wmX = Math.round(24 * scale);
   const wmY = height - Math.round(30 * scale);
 
@@ -137,6 +154,19 @@ function renderHUDOnCanvas(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(wmText, wmX + sczBoxW + Math.round(10 * scale), wmY - Math.round(4 * scale));
+
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+  ctx.shadowBlur = 3 * scale;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+  ctx.font = `500 ${Math.round(9 * scale)}px system-ui, -apple-system, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    '© OpenStreetMap contributors · OpenFreeMap',
+    wmX,
+    height - Math.round(48 * scale),
+    width * 0.68
+  );
 
   // --- 3. Bottom Right 3D Compass / Orientation Pill ---
   if (data.bearingDeg !== undefined) {
@@ -249,6 +279,14 @@ async function recordWithWebCodecs(
       timestamp: timestampMicros,
       duration: frameDurationMicros,
     });
+
+    while (videoEncoder.encodeQueueSize > 4) {
+      await new Promise((resolve) => setTimeout(resolve, 4));
+      if (encoderError) {
+        videoFrame.close();
+        throw encoderError;
+      }
+    }
 
     const isKeyframe = f % 30 === 0;
     videoEncoder.encode(videoFrame, { keyFrame: isKeyframe });
@@ -367,30 +405,12 @@ export async function recordNavigationCanvasVideo(
   } = options;
 
   // Determine fixed high-resolution target dimensions
-  let targetWidth = 1080;
-  let targetHeight = 1920;
+  const { width: targetWidth, height: targetHeight } = getVideoDimensions(
+    quality,
+    aspectRatio
+  );
 
-  if (quality === '1080p') {
-    if (aspectRatio === '9:16') {
-      targetWidth = 1080;
-      targetHeight = 1920;
-    } else {
-      targetWidth = 1920;
-      targetHeight = 1080;
-    }
-  } else {
-    // 720p
-    if (aspectRatio === '9:16') {
-      targetWidth = 720;
-      targetHeight = 1280;
-    } else {
-      targetWidth = 1280;
-      targetHeight = 720;
-    }
-  }
-
-  // Bitrate for high visual fidelity without blocky artifacts
-  const bitrate = quality === '1080p' ? 14_000_000 : 8_000_000;
+  const bitrate = quality === '1080p' ? 9_000_000 : 5_000_000;
   const totalFrames = Math.round(durationSeconds * fps);
 
   // Setup composite canvas
