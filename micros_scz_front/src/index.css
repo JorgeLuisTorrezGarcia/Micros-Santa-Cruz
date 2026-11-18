@@ -5,6 +5,11 @@
   --map-accent: #16a34a;
 }
 
+.app-viewport {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

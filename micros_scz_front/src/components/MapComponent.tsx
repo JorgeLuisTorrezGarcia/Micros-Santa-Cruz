@@ -1,32 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { Coordinates, POIItem, RouteItem, TripOption } from '../types.ts';
+import { MAP_STYLES, type MapStyleKey } from '../utils/map-styles.ts';
 
 // Configure MapLibre to use local worker URL
 if (typeof window !== 'undefined') {
   maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 }
-
-export type MapStyleKey = 'liberty' | 'bright' | 'dark' | 'positron';
-
-const MAP_STYLES: Record<MapStyleKey, { name: string; url: string }> = {
-  liberty: {
-    name: 'Calles Clásico',
-    url: 'https://tiles.openfreemap.org/styles/liberty',
-  },
-  bright: {
-    name: 'Claro Brillante',
-    url: 'https://tiles.openfreemap.org/styles/bright',
-  },
-  dark: {
-    name: 'Modo Oscuro',
-    url: 'https://tiles.openfreemap.org/styles/dark',
-  },
-  positron: {
-    name: 'Carto Positron',
-    url: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-  },
-};
 
 interface MapComponentProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +25,8 @@ interface MapComponentProps {
   onSelectRoute: (routeId: string) => void;
   onSelectPOI: (poi: POIItem) => void;
   searchRadiusMeters?: number;
+  mapStyle: MapStyleKey;
+  onMapStyleChange: (style: MapStyleKey) => void;
   customDataset?: {
     geoJson: any | null;
     isVisible: boolean;
@@ -886,13 +868,20 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onSelectRoute,
   onSelectPOI,
   searchRadiusMeters = 500,
+  mapStyle,
+  onMapStyleChange,
   customDataset,
   onRegisterCaptureMap,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [currentStyle, setCurrentStyle] = useState<MapStyleKey>('liberty');
+  const mapViewRef = useRef<{
+    center: [number, number];
+    zoom: number;
+    bearing: number;
+    pitch: number;
+  } | null>(null);
 
   // Callback refs to prevent stale closures in MapLibre event listeners
   const onMapClickPointRef = useRef(onMapClickPoint);
@@ -1000,9 +989,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Default center: Plaza 24 de Septiembre, Santa Cruz de la Sierra
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: MAP_STYLES[currentStyle].url,
-      center: [-63.1821, -17.7833],
-      zoom: 12.5,
+      style: MAP_STYLES[mapStyle].url,
+      center: mapViewRef.current?.center ?? [-63.1821, -17.7833],
+      zoom: mapViewRef.current?.zoom ?? 12.5,
+      bearing: mapViewRef.current?.bearing ?? 0,
+      pitch: mapViewRef.current?.pitch ?? 0,
       maxZoom: 19,
       minZoom: 9,
       attributionControl: false,
@@ -1027,7 +1018,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         map,
         mapInitialDataRef.current.geoJsonData,
         mapInitialDataRef.current.customDataset,
-        currentStyle,
+        mapStyle,
         setMapLoaded
       );
     };
@@ -1039,12 +1030,19 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     mapRef.current = map;
 
     return () => {
+      const center = map.getCenter();
+      mapViewRef.current = {
+        center: center.toArray(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      };
       map.off('load', handleMapLoad);
       map.off('click', handleMapClick);
       map.remove();
       mapRef.current = null;
     };
-  }, [currentStyle]);
+  }, [mapStyle]);
 
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
@@ -1115,9 +1113,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         {(Object.keys(MAP_STYLES) as MapStyleKey[]).map((key) => (
           <button
             key={key}
-            onClick={() => setCurrentStyle(key)}
+            type="button"
+            aria-pressed={mapStyle === key}
+            onClick={() => onMapStyleChange(key)}
             className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-              currentStyle === key
+              mapStyle === key
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}

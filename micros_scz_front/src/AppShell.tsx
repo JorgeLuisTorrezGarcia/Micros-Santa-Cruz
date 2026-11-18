@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapComponent } from './components/MapComponent.tsx';
 import { LinesTab } from './components/LinesTab.tsx';
 import { NearTab } from './components/NearTab.tsx';
@@ -31,13 +31,18 @@ import {
   User,
   ShieldCheck,
   MessageSquarePlus,
-  TriangleAlert,
+  Siren,
 } from 'lucide-react';
 import { useAppController } from './useAppController.ts';
+import { type MapStyleKey } from './utils/map-styles.ts';
 
 type AppController = ReturnType<typeof useAppController>;
 type AppShellProps = { controller: AppController };
 type AppNavigationProps = AppShellProps & { tabsConfig: typeof tabsConfig };
+type MapStyleProps = {
+  mapStyle: MapStyleKey;
+  onMapStyleChange: (style: MapStyleKey) => void;
+};
 
 const tabsConfig = [
     { id: 'copilot', label: 'MicroBot scz', icon: Sparkles },
@@ -53,17 +58,25 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
   return (
     <>
       {/* Top Navbar */}
-      <header className="h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 z-30 flex items-center justify-between px-4 select-none flex-none shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-md shadow-emerald-950/50">
+      <header className="relative z-30 flex flex-none flex-row items-center justify-between bg-slate-900/95 px-3 pt-[env(safe-area-inset-top)] shadow-md backdrop-blur-md border-b border-slate-800 select-none md:h-14 md:px-4 md:pt-0">
+        <div className="flex h-14 min-w-0 flex-1 items-center gap-3 md:flex-none">
+          <div
+            role="img"
+            aria-label="Micros Santa Cruz"
+            title="Micros Santa Cruz"
+            className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-md shadow-emerald-950/50"
+          >
             <Bus className="w-4 h-4" />
           </div>
-          <div>
+          <span className="inline-flex md:hidden text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-white-400 border border-emerald-500/30">
+            Santa Cruz 
+          </span>
+          <div className="hidden min-w-0 md:block">
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-sm sm:text-base text-white tracking-tight">
+              <h1 className="truncate font-bold text-xs sm:text-base text-white tracking-tight">
                 Micros Santa Cruz
               </h1>
-              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span className="hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 SCZ 🇧🇴
               </span>
             </div>
@@ -103,7 +116,7 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
         </div>
 
         {/* Right Header Status & Account */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
           {isLoading && (
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 text-xs animate-pulse">
               <Sparkles className="w-3.5 h-3.5" />
@@ -132,7 +145,7 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
             title="Registrar una denuncia de transporte"
             aria-label="Denunciar un incidente"
           >
-            <TriangleAlert className="w-3.5 h-3.5 text-amber-300" />
+            <Siren className="w-3.5 h-3.5 text-amber-300" />
             <span className="hidden sm:inline">Denunciar</span>
           </button>
 
@@ -178,12 +191,66 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
             <span className="text-[10px] bg-slate-700 px-1.5 py-0.2 rounded-md">?</span>
           </button>
         </div>
+
+        <div className="flex flex-none items-center gap-1 md:hidden">
+          <button
+            type="button"
+            onClick={handleOpenTransportComplaint}
+            data-testid="transport-complaint-button-mobile"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-amber-800/70 bg-amber-950/70 text-amber-100 transition hover:bg-amber-900"
+            aria-label="Denunciar un incidente"
+          >
+            <Siren className="h-3.5 w-3.5 flex-none text-amber-300" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenFeedback('app', '')}
+            data-testid="feedback-button-mobile"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-200 transition hover:bg-slate-700"
+            aria-label="Enviar feedback"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5 flex-none text-emerald-400" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAuthModalOpen(true)}
+            data-testid="auth-button-mobile"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-200 transition hover:bg-slate-700"
+            title={user ? `Cuenta: ${user.displayName}` : 'Iniciar sesión con Google'}
+            aria-label={user ? `Cuenta: ${user.displayName}` : 'Iniciar sesión'}
+          >
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="h-3.5 w-3.5 flex-none rounded-full object-cover"
+              />
+            ) : (
+              <User className="h-3.5 w-3.5 flex-none text-emerald-400" />
+            )}
+          </button>
+          {user?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsModerationOpen(true)}
+              data-testid="moderation-button-mobile"
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-emerald-700/70 bg-emerald-950/80 text-emerald-300 transition hover:bg-emerald-900"
+              aria-label="Moderar reportes"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 flex-none" />
+            </button>
+          )}
+        </div>
       </header>
     </>
   );
 }
 
-function AppMap({ controller }: AppShellProps) {
+function AppMap({
+  controller,
+  mapStyle,
+  onMapStyleChange,
+}: AppShellProps & MapStyleProps) {
   const { geoJsonData, visibleRouteIds, highlightedRouteId, pointP, pointA, pointB, activeTrip, selectedPOI, pois, activeTab, routeTarget, handleMapClickPoint, handleHighlightRoute, setSelectedPOI, searchRadiusMeters, customDataset } = controller;
   return (
     <>
@@ -204,6 +271,8 @@ function AppMap({ controller }: AppShellProps) {
           onSelectRoute={handleHighlightRoute}
           onSelectPOI={setSelectedPOI}
           searchRadiusMeters={searchRadiusMeters}
+          mapStyle={mapStyle}
+          onMapStyleChange={onMapStyleChange}
           customDataset={customDataset}
         />
     </>
@@ -421,12 +490,12 @@ function AppMobileDrawer({ controller, tabsConfig }: AppNavigationProps) {
     <>
         {/* Mobile Bottom Sheet Drawer */}
         <div
-          className={`md:hidden flex flex-col absolute left-0 right-0 bottom-0 z-30 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700/80 rounded-t-2xl shadow-2xl transition-all duration-300 ${
+          className={`md:hidden flex flex-col absolute left-0 right-0 bottom-0 z-30 pb-[env(safe-area-inset-bottom)] bg-slate-900/95 backdrop-blur-xl border-t border-slate-700/80 rounded-t-2xl shadow-2xl transition-all duration-300 ${
             mobileDrawerHeight === 'collapsed'
               ? 'h-16'
               : mobileDrawerHeight === 'half'
-              ? 'h-[48vh]'
-              : 'h-[85vh]'
+              ? 'h-[48dvh]'
+              : 'h-[85dvh]'
           }`}
         >
           {/* Drawer Handle & Tabs */}
@@ -620,8 +689,12 @@ function AppMobileDrawer({ controller, tabsConfig }: AppNavigationProps) {
   );
 }
 
-function AppOverlays({ controller }: AppShellProps) {
-  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, isPickingComplaintCoords, isTransportComplaintModalOpen, setIsTransportComplaintModalOpen, transportComplaintCoords, transportComplaintLocationAccuracy, transportComplaintResetToken, handleStartPickComplaintCoords, handleCancelPickComplaintCoords, handleSetTransportComplaintLocation, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleLocateUser, handleClearMap, mobileDrawerHeight, setMobileDrawerHeight, routes } = controller;
+function AppOverlays({
+  controller,
+  mapStyle,
+  onMapStyleChange,
+}: AppShellProps & MapStyleProps) {
+  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, isPickingComplaintCoords, isTransportComplaintModalOpen, setIsTransportComplaintModalOpen, transportComplaintCoords, transportComplaintLocationAccuracy, transportComplaintResetToken, handleStartPickComplaintCoords, handleCancelPickComplaintCoords, handleSetTransportComplaintLocation, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleLocateUser, handleClearMap, mobileDrawerHeight, routes } = controller;
   const complaintLineOptions = Array.from(
     new Map(
       routes.map((route) => [
@@ -637,10 +710,9 @@ function AppOverlays({ controller }: AppShellProps) {
           onLocateUser={handleLocateUser}
           onClearMap={handleClearMap}
           onOpenHelp={() => setIsHelpOpen(true)}
-          onToggleSidebar={() => {
-            setMobileDrawerHeight((prev) => (prev === 'collapsed' ? 'half' : 'collapsed'));
-          }}
-          isSidebarOpen={mobileDrawerHeight !== 'collapsed'}
+          mapStyle={mapStyle}
+          onMapStyleChange={onMapStyleChange}
+          mobileDrawerHeight={mobileDrawerHeight}
           onOpenGeofenceModal={() => setIsGeofenceModalOpen(true)}
           isGeofenceActive={alarmConfig.isActive}
         />
@@ -794,15 +866,25 @@ function AppOverlays({ controller }: AppShellProps) {
 }
 
 export function AppShell({ controller }: AppShellProps) {
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>('liberty');
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 font-sans">
+    <div className="app-viewport relative w-screen min-h-0 overflow-hidden flex flex-col bg-slate-950 text-slate-100 font-sans">
       <AppHeader controller={controller} tabsConfig={tabsConfig} />
-      <div className="relative flex-1 w-full h-[calc(100vh-3.5rem)] overflow-hidden">
-        <AppMap controller={controller} />
+      <div className="relative min-h-0 flex-1 w-full overflow-hidden">
+        <AppMap
+          controller={controller}
+          mapStyle={mapStyle}
+          onMapStyleChange={setMapStyle}
+        />
         <AppDesktopSidebar controller={controller} tabsConfig={tabsConfig} />
         <AppSidebarRestore controller={controller} />
         <AppMobileDrawer controller={controller} tabsConfig={tabsConfig} />
-        <AppOverlays controller={controller} />
+        <AppOverlays
+          controller={controller}
+          mapStyle={mapStyle}
+          onMapStyleChange={setMapStyle}
+        />
       </div>
     </div>
   );
