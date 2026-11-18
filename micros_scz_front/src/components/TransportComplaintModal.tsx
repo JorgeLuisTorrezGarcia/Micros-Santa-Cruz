@@ -206,7 +206,7 @@ export function TransportComplaintModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="transport-complaint-title"
-        className="w-full max-w-xl max-h-[92vh] flex flex-col bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-xl max-h-[80vh] flex flex-col bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
