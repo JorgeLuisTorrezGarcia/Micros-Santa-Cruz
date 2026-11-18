@@ -4,8 +4,10 @@ import {
   uuid,
   text,
   doublePrecision,
+  numeric,
   integer,
   timestamp,
+  index,
 } from 'drizzle-orm/pg-core';
 
 export const userRoleEnum = pgEnum('user_role', ['user', 'admin']);
@@ -41,6 +43,28 @@ export const feedbackCategoryEnum = pgEnum('feedback_category', [
 ]);
 
 export const feedbackStatusEnum = pgEnum('feedback_status', [
+  'open',
+  'reviewed',
+  'resolved',
+]);
+
+export const complaintCategoryEnum = pgEnum('complaint_category', [
+  'trato_irrespetuoso',
+  'negativa_servicio',
+  'riesgo_peatonal',
+  'conduccion_peligrosa',
+  'cobro_excesivo',
+  'posible_ebriedad',
+  'otro',
+]);
+
+export const complaintDirectionEnum = pgEnum('complaint_direction', [
+  'ida',
+  'vuelta',
+  'no_sabe',
+]);
+
+export const complaintStatusEnum = pgEnum('complaint_status', [
   'open',
   'reviewed',
   'resolved',
@@ -123,3 +147,36 @@ export const feedback = pgTable('feedback', {
   status: feedbackStatusEnum('status').default('open').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const transportComplaints = pgTable(
+  'transport_complaints',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    lineLabel: text('line_label').notNull(),
+    lineId: text('line_id'),
+    internalNumber: text('internal_number'),
+    category: complaintCategoryEnum('category').notNull(),
+    direction: complaintDirectionEnum('direction').default('no_sabe').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    occurredTimezone: text('occurred_timezone').notNull(),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    locationAccuracyMeters: doublePrecision('location_accuracy_meters'),
+    stopReference: text('stop_reference'),
+    fareAmount: numeric('fare_amount', { precision: 8, scale: 2, mode: 'number' }),
+    description: text('description').notNull(),
+    status: complaintStatusEnum('status').default('open').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('transport_complaints_status_created_at_idx').on(
+      table.status,
+      table.createdAt
+    ),
+    index('transport_complaints_line_category_time_idx').on(
+      table.lineLabel,
+      table.category,
+      table.occurredAt
+    ),
+  ]
+);

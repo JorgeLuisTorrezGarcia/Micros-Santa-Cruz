@@ -132,6 +132,88 @@ export const createFeedbackSchema = z.object({
   comment: z.string().trim().min(4, 'Describe brevemente tu reporte').max(1000),
 });
 
+export const createTransportComplaintSchema = z
+  .object({
+    lineLabel: z.string().trim().min(1).max(100),
+    lineId: z.string().trim().max(120).optional().nullable(),
+    internalNumber: z.string().trim().min(1).max(30).optional().nullable(),
+    category: z.enum([
+      'trato_irrespetuoso',
+      'negativa_servicio',
+      'riesgo_peatonal',
+      'conduccion_peligrosa',
+      'cobro_excesivo',
+      'posible_ebriedad',
+      'otro',
+    ]),
+    direction: z.enum(['ida', 'vuelta', 'no_sabe']).default('no_sabe'),
+    occurredAt: z.string().datetime({ offset: true }),
+    occurredTimezone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .refine((value) => {
+        try {
+          new Intl.DateTimeFormat('es', { timeZone: value });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'Zona horaria inválida'),
+    latitude: z
+      .number()
+      .refine((value) => value >= SCZ_BOUNDS.minLat && value <= SCZ_BOUNDS.maxLat, {
+        message: 'Ubicación fuera del área metropolitana de Santa Cruz',
+      })
+      .optional()
+      .nullable(),
+    longitude: z
+      .number()
+      .refine((value) => value >= SCZ_BOUNDS.minLon && value <= SCZ_BOUNDS.maxLon, {
+        message: 'Ubicación fuera del área metropolitana de Santa Cruz',
+      })
+      .optional()
+      .nullable(),
+    locationAccuracyMeters: z.number().positive().max(10000).optional().nullable(),
+    stopReference: z.string().trim().max(160).optional().nullable(),
+    fareAmount: z.number().positive().max(1000).optional().nullable(),
+    description: z.string().trim().min(5).max(2000),
+  })
+  .superRefine((value, context) => {
+    if ((value.latitude == null) !== (value.longitude == null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Envía latitud y longitud juntas o deja ambas vacías.',
+        path: ['latitude'],
+      });
+    }
+
+    if (value.locationAccuracyMeters != null && value.latitude == null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La precisión requiere una ubicación.',
+        path: ['locationAccuracyMeters'],
+      });
+    }
+
+    if (value.fareAmount != null && value.category !== 'cobro_excesivo') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El monto solo corresponde a reportes de cobro excesivo.',
+        path: ['fareAmount'],
+      });
+    }
+
+    if (Date.parse(value.occurredAt) > Date.now() + 5 * 60 * 1000) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La fecha del incidente no puede estar en el futuro.',
+        path: ['occurredAt'],
+      });
+    }
+  });
+
 export const moderationDecisionSchema = z.object({
   status: z.string().trim().min(2).max(32),
   moderationNote: z.string().trim().max(300).optional().nullable(),

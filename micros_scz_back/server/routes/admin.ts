@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { desc, eq, ne } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
-import { feedback, placeCategories, places, users } from '../db/schema.ts';
+import {
+  feedback,
+  placeCategories,
+  places,
+  transportComplaints,
+  users,
+} from '../db/schema.ts';
 import { moderationDecisionSchema } from '../db/validation.ts';
 import { requireAdmin, requireAuth } from '../middleware/auth.ts';
 
@@ -59,10 +65,17 @@ adminRouter.get('/moderation', async (_req, res) => {
       .where(ne(feedback.status, 'resolved'))
       .orderBy(desc(feedback.createdAt));
 
+    const openComplaints = await db
+      .select()
+      .from(transportComplaints)
+      .where(ne(transportComplaints.status, 'resolved'))
+      .orderBy(desc(transportComplaints.createdAt));
+
     res.json({
       pendingPlaces,
       pendingCategories,
       openFeedback,
+      openComplaints,
     });
   } catch (err: unknown) {
     console.error('[Admin] GET /moderation error:', err);
@@ -158,6 +171,30 @@ adminRouter.patch('/moderation/:entity/:id', async (req, res) => {
 
       if (!updated) {
         res.status(404).json({ error: 'Reporte no encontrado.' });
+        return;
+      }
+      res.json({ updated });
+      return;
+    }
+
+    if (entity === 'complaint') {
+      if (
+        parsed.data.status !== 'open' &&
+        parsed.data.status !== 'reviewed' &&
+        parsed.data.status !== 'resolved'
+      ) {
+        res.status(400).json({ error: 'Estado inválido para denuncia.' });
+        return;
+      }
+
+      const [updated] = await db
+        .update(transportComplaints)
+        .set({ status: parsed.data.status })
+        .where(eq(transportComplaints.id, id))
+        .returning({ id: transportComplaints.id });
+
+      if (!updated) {
+        res.status(404).json({ error: 'Denuncia no encontrada.' });
         return;
       }
       res.json({ updated });

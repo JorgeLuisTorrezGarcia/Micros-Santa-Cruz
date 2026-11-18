@@ -6,6 +6,7 @@ import {
   createFavoriteSchema,
   createFeedbackSchema,
   createPlaceSchema,
+  createTransportComplaintSchema,
   isWithinSantaCruzBounds,
   slugifyCategory,
 } from './db/validation.ts';
@@ -68,6 +69,18 @@ test('Santa Cruz bounding box & validation schemas enforce valid coordinates and
     }).success,
     true
   );
+
+  assert.equal(
+    createTransportComplaintSchema.safeParse({
+      lineLabel: 'Línea 72',
+      category: 'cobro_excesivo',
+      occurredAt: new Date().toISOString(),
+      occurredTimezone: 'America/La_Paz',
+      fareAmount: 3,
+      description: 'Me cobraron una tarifa mayor a la establecida.',
+    }).success,
+    true
+  );
 });
 
 test('CORS whitelist enforces ALLOWED_ORIGINS while allowing localhost dev', () => {
@@ -117,6 +130,29 @@ test('Decoupled API server boots cleanly without DATABASE_URL and enforces auth'
     };
     assert.equal(bootstrapJson.dbConfigured, false);
     assert.deepEqual(bootstrapJson.places, []);
+
+    const anonymousComplaintRes = await fetch(`${base}/api/complaints`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lineLabel: 'Línea 72',
+        category: 'trato_irrespetuoso',
+        occurredAt: new Date().toISOString(),
+        occurredTimezone: 'America/La_Paz',
+        description: 'El chofer trató mal a un pasajero.',
+      }),
+    });
+    assert.equal(
+      anonymousComplaintRes.status,
+      503,
+      'anonymous complaint submission reaches storage availability instead of requiring a session'
+    );
+
+    const privateQueueRes = await fetch(`${base}/api/admin/moderation`);
+    assert.equal(privateQueueRes.status, 401);
+
+    const publicComplaintReadRes = await fetch(`${base}/api/complaints`);
+    assert.equal(publicComplaintReadRes.status, 404);
 
     const unauthPlaceRes = await fetch(`${base}/api/places`, {
       method: 'POST',
