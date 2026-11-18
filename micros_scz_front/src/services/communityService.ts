@@ -1,6 +1,7 @@
 import type {
   ApiHealthStatus,
   CommunityPOIItem,
+  CreateTransportComplaintPayload,
   FavoriteRouteItem,
   FeedbackCategory,
   FeedbackItem,
@@ -136,12 +137,24 @@ export async function submitFeedback(
   return res.feedback;
 }
 
+export async function submitTransportComplaint(
+  payload: CreateTransportComplaintPayload
+): Promise<{ id: string; status: 'open'; createdAt: string }> {
+  const res = await apiRequest<{
+    complaint: { id: string; status: 'open'; createdAt: string };
+  }>('/api/complaints', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.complaint;
+}
+
 export async function fetchModerationQueue(): Promise<ModerationQueue> {
   return apiRequest<ModerationQueue>('/api/admin/moderation');
 }
 
 export async function moderateEntity(
-  entity: 'place' | 'category' | 'feedback',
+  entity: 'place' | 'category' | 'feedback' | 'complaint',
   id: string,
   status: string,
   moderationNote?: string

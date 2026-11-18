@@ -14,6 +14,7 @@ import { CopilotTab } from './components/CopilotTab.tsx';
 import { NavigationAnimationModal } from './components/NavigationAnimationModal.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { FeedbackModal } from './components/FeedbackModal.tsx';
+import { TransportComplaintModal } from './components/TransportComplaintModal.tsx';
 import { ModerationModal } from './components/ModerationModal.tsx';
 import { AddPlaceModal } from './components/AddPlaceModal.tsx';
 import {
@@ -30,6 +31,7 @@ import {
   User,
   ShieldCheck,
   MessageSquarePlus,
+  TriangleAlert,
 } from 'lucide-react';
 import { useAppController } from './useAppController.ts';
 
@@ -47,7 +49,7 @@ const tabsConfig = [
   ] as const;
 
 function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
-  const { stats, activeTab, setActiveTab, isSidebarCollapsed, setIsSidebarCollapsed, isLoading, user, setIsModerationOpen, handleOpenFeedback, setIsAuthModalOpen, setIsHelpOpen } = controller;
+  const { stats, activeTab, setActiveTab, isSidebarCollapsed, setIsSidebarCollapsed, isLoading, user, setIsModerationOpen, handleOpenFeedback, handleOpenTransportComplaint, setIsAuthModalOpen, setIsHelpOpen } = controller;
   return (
     <>
       {/* Top Navbar */}
@@ -121,6 +123,18 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
               <span className="hidden lg:inline">Moderar</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={handleOpenTransportComplaint}
+            data-testid="transport-complaint-button"
+            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900 text-amber-100 border border-amber-800/70 text-xs font-medium transition flex items-center gap-1.5 cursor-pointer"
+            title="Registrar una denuncia de transporte"
+            aria-label="Denunciar un incidente"
+          >
+            <TriangleAlert className="w-3.5 h-3.5 text-amber-300" />
+            <span className="hidden sm:inline">Denunciar</span>
+          </button>
 
           <button
             type="button"
@@ -607,7 +621,15 @@ function AppMobileDrawer({ controller, tabsConfig }: AppNavigationProps) {
 }
 
 function AppOverlays({ controller }: AppShellProps) {
-  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleLocateUser, handleClearMap, mobileDrawerHeight, setMobileDrawerHeight } = controller;
+  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, isPickingComplaintCoords, isTransportComplaintModalOpen, setIsTransportComplaintModalOpen, transportComplaintCoords, transportComplaintLocationAccuracy, transportComplaintResetToken, handleStartPickComplaintCoords, handleCancelPickComplaintCoords, handleSetTransportComplaintLocation, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleLocateUser, handleClearMap, mobileDrawerHeight, setMobileDrawerHeight, routes } = controller;
+  const complaintLineOptions = Array.from(
+    new Map(
+      routes.map((route) => [
+        route.label.trim(),
+        { id: route.id, label: route.label.trim() },
+      ])
+    ).values()
+  ).sort((first, second) => first.label.localeCompare(second.label, 'es'));
   return (
     <>
         {/* Floating Action Buttons */}
@@ -691,6 +713,19 @@ function AppOverlays({ controller }: AppShellProps) {
           </div>
         )}
 
+        {isPickingComplaintCoords && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 bg-amber-950/95 text-amber-100 text-xs font-semibold rounded-xl shadow-2xl border border-amber-500/70 flex items-center gap-3">
+            <span>Toca el mapa para señalar dónde ocurrió el incidente</span>
+            <button
+              type="button"
+              onClick={handleCancelPickComplaintCoords}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px]"
+            >
+              Volver
+            </button>
+          </div>
+        )}
+
         {/* Google Auth Modal */}
         <AuthModal
           isOpen={isAuthModalOpen}
@@ -732,6 +767,17 @@ function AppOverlays({ controller }: AppShellProps) {
           defaultTargetType={feedbackDefaultTarget.type}
           defaultTargetRef={feedbackDefaultTarget.ref}
           onToast={showToast}
+        />
+
+        <TransportComplaintModal
+          isOpen={isTransportComplaintModalOpen}
+          resetToken={transportComplaintResetToken}
+          lineOptions={complaintLineOptions}
+          location={transportComplaintCoords}
+          locationAccuracyMeters={transportComplaintLocationAccuracy}
+          onLocationChange={handleSetTransportComplaintLocation}
+          onStartPickLocation={handleStartPickComplaintCoords}
+          onClose={() => setIsTransportComplaintModalOpen(false)}
         />
 
         {/* Admin Moderation Modal */}

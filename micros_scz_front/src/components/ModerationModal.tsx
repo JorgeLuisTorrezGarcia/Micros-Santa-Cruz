@@ -16,9 +16,9 @@ interface ModerationModalProps {
 
 interface ModerationQueueContentProps {
   queue: ModerationQueue | null;
-  section: 'places' | 'categories' | 'feedback';
+  section: 'places' | 'categories' | 'feedback' | 'complaints';
   errorMsg: string | null;
-  onAction: (entity: 'place' | 'category' | 'feedback', id: string, status: string, label: string) => void;
+  onAction: (entity: 'place' | 'category' | 'feedback' | 'complaint', id: string, status: string, label: string) => void;
 }
 
 function ModerationQueueContent({
@@ -225,6 +225,128 @@ function ModerationQueueContent({
               )}
             </div>
           )}
+
+          {section === 'complaints' && (
+                <div className="border border-slate-800 rounded-xl overflow-x-auto">
+                  {!queue || queue.openComplaints.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-8">
+                      No hay denuncias pendientes de revisión.
+                    </p>
+                  ) : (
+                    <table className="w-full min-w-[880px] text-left text-xs">
+                      <thead className="bg-slate-800/70 text-slate-400 text-[11px]">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Línea / interno</th>
+                          <th className="px-3 py-2 font-medium">Categoría / fecha</th>
+                          <th className="px-3 py-2 font-medium">Detalle / ubicación</th>
+                          <th className="px-3 py-2 font-medium">Estado</th>
+                          <th className="px-3 py-2 text-right font-medium">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {queue.openComplaints.map((complaint) => (
+                          <tr key={complaint.id} className="align-top hover:bg-slate-800/40">
+                            <td className="px-3 py-2 text-slate-100">
+                              <p className="font-semibold">{complaint.lineLabel}</p>
+                              {complaint.internalNumber && (
+                                <p className="mt-1 text-slate-400">
+                                  Interno {complaint.internalNumber}
+                                </p>
+                              )}
+                              <p className="mt-1 text-slate-400">
+                                {complaint.direction === 'no_sabe'
+                                  ? 'Sentido no indicado'
+                                  : complaint.direction === 'ida'
+                                    ? 'Ida'
+                                    : 'Vuelta'}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 text-slate-300">
+                              <p>{complaint.category.replaceAll('_', ' ')}</p>
+                              <p className="mt-1 text-slate-400">
+                                Hecho:{' '}
+                                {new Date(complaint.occurredAt).toLocaleString(
+                                  'es-BO',
+                                  { timeZone: complaint.occurredTimezone }
+                                )}
+                              </p>
+                              <p className="mt-1 text-slate-500">
+                                Recibido:{' '}
+                                {new Date(complaint.createdAt).toLocaleString(
+                                  'es-BO',
+                                  { timeZone: 'America/La_Paz' }
+                                )}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 text-slate-200 max-w-md">
+                              <p className="whitespace-pre-wrap break-words">
+                                {complaint.description}
+                              </p>
+                              {complaint.stopReference && (
+                                <p className="mt-1 text-slate-400">
+                                  Referencia: {complaint.stopReference}
+                                </p>
+                              )}
+                              {complaint.fareAmount !== null && (
+                                <p className="mt-1 text-slate-400">
+                                  Monto: Bs {complaint.fareAmount.toFixed(2)}
+                                </p>
+                              )}
+                              {complaint.latitude !== null &&
+                                complaint.longitude !== null && (
+                                  <p className="mt-1 font-mono text-[10px] text-slate-500">
+                                    {complaint.latitude.toFixed(5)},{' '}
+                                    {complaint.longitude.toFixed(5)}
+                                    {complaint.locationAccuracyMeters !== null
+                                      ? ` · ±${Math.round(complaint.locationAccuracyMeters)} m`
+                                      : ''}
+                                  </p>
+                                )}
+                            </td>
+                            <td className="px-3 py-2 text-slate-300">
+                              {complaint.status === 'open' ? 'Nueva' : 'En revisión'}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <div className="inline-flex items-center gap-1.5">
+                                {complaint.status === 'open' && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAction(
+                                        'complaint',
+                                        complaint.id,
+                                        'reviewed',
+                                        'Denuncia marcada en revisión'
+                                      )
+                                    }
+                                    className="px-2 py-1 rounded bg-amber-600/20 hover:bg-amber-600 text-amber-200 hover:text-white border border-amber-600/40 transition"
+                                  >
+                                    Revisar
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAction(
+                                      'complaint',
+                                      complaint.id,
+                                      'resolved',
+                                      'Denuncia cerrada en la revisión'
+                                    )
+                                  }
+                                  className="px-2 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-600/40 transition"
+                                >
+                                  Cerrar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
         </div>
   );
 }
@@ -236,9 +358,9 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({
   onToast,
 }) => {
   const [queue, setQueue] = useState<ModerationQueue | null>(null);
-  const [section, setSection] = useState<'places' | 'categories' | 'feedback'>(
-    'places'
-  );
+  const [section, setSection] = useState<
+    'places' | 'categories' | 'feedback' | 'complaints'
+  >('places');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -270,7 +392,7 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({
   if (!isOpen) return null;
 
   const handleAction = async (
-    entity: 'place' | 'category' | 'feedback',
+    entity: 'place' | 'category' | 'feedback' | 'complaint',
     id: string,
     status: string,
     label: string
@@ -361,6 +483,17 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({
             }`}
           >
             Feedback ({queue?.openFeedback.length ?? 0})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSection('complaints')}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition tabular-nums ${
+              section === 'complaints'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            Denuncias ({queue?.openComplaints.length ?? 0})
           </button>
         </div>
 

@@ -57,6 +57,15 @@ export function useAppController() {
     type: FeedbackTargetType;
     ref: string;
   }>({ type: 'app', ref: '' });
+  const [isTransportComplaintModalOpen, setIsTransportComplaintModalOpen] =
+    useState(false);
+  const [isPickingComplaintCoords, setIsPickingComplaintCoords] = useState(false);
+  const [transportComplaintCoords, setTransportComplaintCoords] =
+    useState<Coordinates | null>(null);
+  const [transportComplaintLocationAccuracy, setTransportComplaintLocationAccuracy] =
+    useState<number | null>(null);
+  const [transportComplaintResetToken, setTransportComplaintResetToken] =
+    useState(0);
   const [isModerationOpen, setIsModerationOpen] = useState<boolean>(false);
   const [isAddPlaceModalOpen, setIsAddPlaceModalOpen] = useState<boolean>(false);
   const [isPickingPlaceCoords, setIsPickingPlaceCoords] = useState<boolean>(false);
@@ -373,6 +382,15 @@ export function useAppController() {
 
   // Map Click Handler: responds based on activeTab or coordinate picking
   const handleMapClickPoint = (coords: Coordinates) => {
+    if (isPickingComplaintCoords) {
+      setTransportComplaintCoords(coords);
+      setTransportComplaintLocationAccuracy(null);
+      setIsPickingComplaintCoords(false);
+      setIsTransportComplaintModalOpen(true);
+      showToast('Ubicación del incidente añadida');
+      return;
+    }
+
     if (isPickingPlaceCoords) {
       setPickedPlaceCoords(coords);
       setIsPickingPlaceCoords(false);
@@ -722,6 +740,32 @@ export function useAppController() {
     []
   );
 
+  const handleOpenTransportComplaint = useCallback(() => {
+    setTransportComplaintCoords(null);
+    setTransportComplaintLocationAccuracy(null);
+    setIsPickingComplaintCoords(false);
+    setTransportComplaintResetToken((token) => token + 1);
+    setIsTransportComplaintModalOpen(true);
+  }, []);
+
+  const handleStartPickComplaintCoords = useCallback(() => {
+    setIsTransportComplaintModalOpen(false);
+    setIsPickingComplaintCoords(true);
+  }, []);
+
+  const handleCancelPickComplaintCoords = useCallback(() => {
+    setIsPickingComplaintCoords(false);
+    setIsTransportComplaintModalOpen(true);
+  }, []);
+
+  const handleSetTransportComplaintLocation = useCallback(
+    (coordinates: Coordinates | null, accuracyMeters: number | null = null) => {
+      setTransportComplaintCoords(coordinates);
+      setTransportComplaintLocationAccuracy(accuracyMeters);
+    },
+    []
+  );
+
   const handleSignOut = useCallback(async () => {
     try {
       await closeSession();
@@ -1024,6 +1068,11 @@ export function useAppController() {
     setIsGeofenceModalOpen, isSimulatingApproach,
     isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip,
     isAuthModalOpen, setIsAuthModalOpen, isFeedbackModalOpen, setIsFeedbackModalOpen,
+    isTransportComplaintModalOpen, setIsTransportComplaintModalOpen,
+    isPickingComplaintCoords, transportComplaintCoords,
+    transportComplaintLocationAccuracy, transportComplaintResetToken,
+    handleOpenTransportComplaint, handleStartPickComplaintCoords,
+    handleCancelPickComplaintCoords, handleSetTransportComplaintLocation,
     feedbackDefaultTarget, isModerationOpen, setIsModerationOpen,
     isAddPlaceModalOpen, setIsAddPlaceModalOpen, isPickingPlaceCoords,
     setIsPickingPlaceCoords, pickedPlaceCoords, dbConfigured, user, setUser, handleOpenFeedback,

@@ -233,6 +233,54 @@ export interface FeedbackItem {
   createdAt: string;
 }
 
+export type TransportComplaintCategory =
+  | 'trato_irrespetuoso'
+  | 'negativa_servicio'
+  | 'riesgo_peatonal'
+  | 'conduccion_peligrosa'
+  | 'cobro_excesivo'
+  | 'posible_ebriedad'
+  | 'otro';
+
+export type TransportComplaintDirection = 'ida' | 'vuelta' | 'no_sabe';
+
+export type TransportComplaintStatus = 'open' | 'reviewed' | 'resolved';
+
+export interface TransportComplaintItem {
+  id: string;
+  lineLabel: string;
+  lineId: string | null;
+  internalNumber: string | null;
+  category: TransportComplaintCategory;
+  direction: TransportComplaintDirection;
+  occurredAt: string;
+  occurredTimezone: string;
+  latitude: number | null;
+  longitude: number | null;
+  locationAccuracyMeters: number | null;
+  stopReference: string | null;
+  fareAmount: number | null;
+  description: string;
+  status: TransportComplaintStatus;
+  createdAt: string;
+}
+
+export interface CreateTransportComplaintPayload {
+  lineLabel: string;
+  lineId?: string | null;
+  internalNumber?: string | null;
+  category: TransportComplaintCategory;
+  direction?: TransportComplaintDirection;
+  occurredAt: string;
+  occurredTimezone: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationAccuracyMeters?: number | null;
+  stopReference?: string | null;
+  fareAmount?: number | null;
+  description: string;
+}
+
 export interface ModerationQueue {
   pendingPlaces: Array<{
     id: string;
@@ -256,6 +304,7 @@ export interface ModerationQueue {
     createdAt: string;
   }>;
   openFeedback: FeedbackItem[];
+  openComplaints: TransportComplaintItem[];
 }
 
 export interface ApiHealthStatus {

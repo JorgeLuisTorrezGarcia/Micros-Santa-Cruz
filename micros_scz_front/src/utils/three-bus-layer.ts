@@ -120,7 +120,7 @@ export class ThreeBusLayer implements maplibregl.CustomLayerInterface {
   }
 
   private loadBusModel(): Promise<void> {
-    const modelUrl = `${import.meta.env.BASE_URL}assets/microbus_santa_cruz_115.glb`;
+    const modelUrl = `${import.meta.env.BASE_URL}assets/microbus_1.glb`;
     return import('three/addons/loaders/GLTFLoader.js')
       .then(({ GLTFLoader }) => new GLTFLoader().loadAsync(modelUrl))
       .then((gltf) => {
