@@ -10,10 +10,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit"
   },
-  "dependencies": {
-    "@remotion/paths": "^4.0.542",
-    "@remotion/player": "^4.0.542",
-    "@remotion/shapes": "^4.0.542",
+  "dependencies": { 
     "@turf/turf": "^7.4.0",
     "geojson-vt": "^5.0.4",
     "lucide-react": "^0.546.0",
