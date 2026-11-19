@@ -1,9 +1,10 @@
 // Service Worker for Offline Route and Transit Data
-const CACHE_NAME = 'scz-micros-v1';
+const CACHE_NAME = 'scz-micros-v2';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/favicon.ico',
   '/data/rutas_micro_scz.geojson',
   '/data/calles_scz.geojson',
   '/data/lugares_scz.json',

@@ -1,4 +1,4 @@
-# Micros Santa Cruz – Rutas y Tránsito 🚌🗺️
+# SIMU – Rutas y Tránsito 🚌🗺️
 
 Aplicación web interactiva y de alto rendimiento para consultar las líneas y recorridos de micros de **Santa Cruz de la Sierra, Bolivia**. Permite inspeccionar rutas de ida y vuelta, calcular trayectos óptimos entre dos puntos (directos o con transbordos), explorar puntos de interés urbanos, activar alertas sonoras/vibratorias de bajada por geocerca GPS y consultar un Copiloto Agéntico.
 
@@ -60,11 +60,16 @@ La aplicación procesa un archivo GeoJSON de forma fluida en el navegador median
 
 ### 9. 🎬 Animación 3D de Navegación del Recorrido (Video Exportable)
 - **Cámara 3D Dinámica con Seguimiento**: animación cinematográfica que sigue el avance del recorrido con inclinación de cámara (*pitch* a 56°) y rotación continua (*bearing*) a través del trazado real de las calles de Santa Cruz.
-- **Microbús 3D Cruceño Procedural**: modelo 3D detallado con ventanas panorámicas oscuras, parachoques cromados, ruedas y sombra en el asfalto.
+- **Microbús 3D Cruceño**: modelo `.glb` con carga diferida y respaldo procedural, pastilla de línea orientada a cámara y ajustes de escala/orientación para el mapa.
 - **Peatón 3D Caminando**: avatar estilizado con mochila, gorra y zancada activa para los tramos de caminata iniciales, finales y de transbordo.
 - **Puntos de Inicio (A) y Destino (B) Nativos en WebGL**: insignias y anillos de luz pulsantes en la calzada visibles en el mapa y grabados en el video.
 - **Estudio Multi-Formato**: selector instantáneo entre formato vertical **9:16** (TikTok, Instagram Reels, Shorts) y horizontal **16:9** (pantalla ancha).
 - **Exportación Directa a Video MP4/WebM**: motor de captura cuadro a cuadro con lienzo compuesto 2D que incrusta la marca de agua oficial y la píldora informativa de navegación directamente en el archivo de video descargable, listo para importar y editar en **CapCut**.
+
+### 10. 🚌 Denuncias de incidentes en el transporte
+- Registro anónimo, sin necesidad de iniciar sesión, con línea, tipo de incidente y descripción.
+- Fecha y hora local del incidente; número de interno, sentido, referencia de parada o cruce, ubicación y monto cobrado son opcionales.
+- Los reportes son privados y solo personal autorizado puede revisarlos. Se limita el envío para prevenir abusos.
 
 ---
 
@@ -116,7 +121,9 @@ La API queda en `http://localhost:4000` y la aplicación estática en `http://lo
 
 ## 🛠️ Guía para Desarrolladores: Animación 3D de Navegación y Exportación de Video
 
-Esta funcionalidad permite transformar cualquier ruta calculada de A $\to$ B en una animación 3D cinematográfica con vista aérea inclinada que sigue el recorrido de las calles reales de Santa Cruz, exportable directamente como video para CapCut, TikTok, Instagram Reels o YouTube Shorts.
+La guía técnica de implementación vigente, parámetros de cámara y modelo, opciones de exportación y propuesta para una futura función publicitaria está en [documentacion-rendimiento-3d.md](./documentacion-rendimiento-3d.md). El contenido técnico histórico que sigue se conserva como referencia, pero puede describir valores anteriores al modelo GLB actual.
+
+> Para cambiar parámetros o sustituir el modelo, sigue la guía enlazada arriba; no uses los ejemplos antiguos de escala, luces o carga GLTF de esta sección.
 
 ### 📐 Arquitectura de la Feature
 
@@ -252,7 +259,7 @@ Si deseas utilizar un modelo 3D descargado (por ejemplo un archivo `micro.glb` e
 - **Texto por defecto de la marca de agua**:
   - En `src/components/NavigationAnimationModal.tsx`:
     ```ts
-    watermarkText="Micros Santa Cruz · Recorrido Oficial"
+    watermarkText="SIMU · Recorrido Oficial"
     ```
 - **Renderizado del HUD en el video exportado**:
   - En `src/utils/navigation-video-recorder.ts`: función `renderHUDOnCanvas()`. Aquí se define la tipografía, el logo badge `SCZ`, los colores del fondo traslúcido y la píldora superior con el nombre de la línea e instrucciones de viaje.
@@ -280,7 +287,7 @@ Plan para MicroBot: reconocer localmente las cinco acciones actuales con respues
 
 ## 📄 Licencia
 
-El código original de Micros Santa Cruz se publica bajo la licencia Apache-2.0. Consulta el archivo [LICENSE](./LICENSE) para conocer los permisos, condiciones y limitaciones.
+El código original de SIMU se publica bajo la licencia Apache-2.0. Consulta el archivo [LICENSE](./LICENSE) para conocer los permisos, condiciones y limitaciones.
 
 La licencia del proyecto no reemplaza ni amplía los derechos de terceros. Bibliotecas, datasets geográficos, mapas, marcas, imágenes y otros recursos que no sean propiedad de los mantenedores conservan sus propias licencias y requisitos de atribución. Verifica sus términos con sus respectivas fuentes antes de redistribuirlos.
 
