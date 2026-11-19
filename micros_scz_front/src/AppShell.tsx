@@ -45,7 +45,7 @@ type MapStyleProps = {
 };
 
 const tabsConfig = [
-    { id: 'copilot', label: 'MicroBot scz', icon: Sparkles },
+    { id: 'copilot', label: 'SIMU', icon: Sparkles },
     { id: 'lines', label: 'Líneas', icon: Bus },
     { id: 'near', label: 'Cerca', icon: Radar },
     { id: 'route', label: 'Navegación', icon: RouteIcon },
@@ -62,8 +62,8 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
         <div className="flex h-14 min-w-0 flex-1 items-center gap-3 md:flex-none">
           <div
             role="img"
-            aria-label="Micros Santa Cruz"
-            title="Micros Santa Cruz"
+            aria-label="SIMU"
+            title="SIMU"
             className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-md shadow-emerald-950/50"
           >
             <Bus className="w-4 h-4" />
@@ -74,7 +74,7 @@ function AppHeader({ controller, tabsConfig }: AppNavigationProps) {
           <div className="hidden min-w-0 md:block">
             <div className="flex items-center gap-2">
               <h1 className="truncate font-bold text-xs sm:text-base text-white tracking-tight">
-                Micros Santa Cruz
+                SIMU
               </h1>
               <span className="hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 SCZ 🇧🇴

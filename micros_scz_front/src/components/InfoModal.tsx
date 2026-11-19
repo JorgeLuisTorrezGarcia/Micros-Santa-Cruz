@@ -20,7 +20,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h2 className="font-bold text-base text-slate-100">
-                Micros Santa Cruz – Guía de Uso
+                SIMU – Guía de Uso
               </h2>
               <p className="text-xs text-slate-400">
                 Santa Cruz de la Sierra, Bolivia

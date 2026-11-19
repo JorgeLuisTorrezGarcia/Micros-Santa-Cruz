@@ -126,7 +126,7 @@ function renderHUDOnCanvas(
   ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeH / 2);
 
   // --- 2. Bottom Discrete Brand Watermark ---
-  const wmText = data.watermarkText || 'Micros Santa Cruz';
+  const wmText = data.watermarkText || 'SIMU';
   const wmX = Math.round(24 * scale);
   const wmY = height - Math.round(30 * scale);
 

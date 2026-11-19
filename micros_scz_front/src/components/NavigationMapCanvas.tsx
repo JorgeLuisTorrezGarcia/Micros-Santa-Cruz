@@ -389,7 +389,7 @@ export const NavigationMapCanvas = forwardRef<
       sample,
       mapStyleUrl = 'https://tiles.openfreemap.org/styles/liberty',
       aspectRatio,
-      watermarkText = 'Micros Santa Cruz · Santa Cruz de la Sierra',
+      watermarkText = 'SIMU · Santa Cruz de la Sierra',
     },
     ref
   ) => {

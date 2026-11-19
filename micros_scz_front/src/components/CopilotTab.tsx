@@ -285,7 +285,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
       id: 'welcome',
       role: 'model',
       content:
-        '¡Hola! Soy **MicroBot SCZ**, tu copiloto de micros en Santa Cruz. Puedo calcular tus rutas de micro, buscar qué líneas pasan cerca, mostrarte recorridos en el mapa o activar tu alarma de bajada por GPS. ¿A dónde te gustaría ir?',
+        '¡Hola! Soy SIMU scz, tu copiloto de micros en Santa Cruz. Puedo calcular tus rutas de micro, buscar qué líneas pasan cerca, mostrarte recorridos en el mapa o activar tu alarma de bajada por GPS. ¿A dónde te gustaría ir?',
       timestamp: Date.now(),
     },
   ]);
@@ -492,7 +492,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="font-bold text-slate-200">MicroBot SCZ</span>
+            <span className="font-bold text-slate-200">SIMU scz</span>
             <span className="text-[10px] text-slate-400 block leading-none">Copiloto Inteligente de Rutas</span>
           </div>
         </div>

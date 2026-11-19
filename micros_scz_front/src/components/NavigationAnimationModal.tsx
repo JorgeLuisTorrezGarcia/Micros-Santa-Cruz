@@ -484,7 +484,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
             lineLabel: sample.lineLabel,
             lineColor: sample.lineColor,
             instruction: sample.instruction,
-            watermarkText: 'Micros Santa Cruz',
+            watermarkText: 'SIMU',
             bearingDeg: sample.bearing,
           };
         },
@@ -560,7 +560,7 @@ export const NavigationAnimationModal: React.FC<NavigationAnimationModalProps> =
               sample={currentSample}
               mapStyleUrl={mapStyleUrl}
               aspectRatio={aspectRatio}
-              watermarkText="Micros Santa Cruz"
+              watermarkText="SIMU"
             />
           </div>
 
