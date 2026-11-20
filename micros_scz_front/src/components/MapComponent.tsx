@@ -21,6 +21,8 @@ interface MapComponentProps {
   allPOIs?: POIItem[];
   activeMode: 'copilot' | 'lines' | 'near' | 'route' | 'places' | 'dataset';
   routeTarget: 'A' | 'B';
+  liveLocation: Coordinates | null;
+  isLiveLocationActive: boolean;
   onMapClickPoint: (coords: Coordinates) => void;
   onSelectRoute: (routeId: string) => void;
   onSelectPOI: (poi: POIItem) => void;
@@ -864,6 +866,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   selectedPOI,
   allPOIs = [],
   activeMode,
+  liveLocation,
+  isLiveLocationActive,
   onMapClickPoint,
   onSelectRoute,
   onSelectPOI,
@@ -896,6 +900,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const markerBRef = useRef<maplibregl.Marker | null>(null);
   const markerPRef = useRef<maplibregl.Marker | null>(null);
   const markerPOIRef = useRef<maplibregl.Marker | null>(null);
+  const markerUserLocationRef = useRef<maplibregl.Marker | null>(null);
+  const hasCenteredLiveLocationRef = useRef(false);
 
   // Expose clean map capture without pins
   useEffect(() => {
@@ -936,6 +942,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         if (markerBRef.current?.getElement()) markersToHide.push(markerBRef.current.getElement());
         if (markerPRef.current?.getElement()) markersToHide.push(markerPRef.current.getElement());
         if (markerPOIRef.current?.getElement()) markersToHide.push(markerPOIRef.current.getElement());
+        if (markerUserLocationRef.current?.getElement()) {
+          markersToHide.push(markerUserLocationRef.current.getElement());
+        }
       }
 
 
@@ -1098,6 +1107,57 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     pointP,
     selectedPOI,
   });
+
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current) {
+      markerUserLocationRef.current?.remove();
+      markerUserLocationRef.current = null;
+      return;
+    }
+
+    if (!liveLocation) {
+      markerUserLocationRef.current?.remove();
+      markerUserLocationRef.current = null;
+      return;
+    }
+
+    if (!markerUserLocationRef.current) {
+      const element = document.createElement('div');
+      element.className = 'relative flex h-8 w-8 items-center justify-center';
+      element.setAttribute('role', 'img');
+      element.setAttribute('aria-label', 'Tu ubicación actual');
+      element.innerHTML = `
+        <span class="absolute h-7 w-7 rounded-full border border-sky-300/60 bg-sky-400/20"></span>
+        <span class="relative h-4 w-4 rounded-full border-[3px] border-white bg-sky-500 shadow-lg shadow-sky-950/60"></span>
+      `;
+      markerUserLocationRef.current = new maplibregl.Marker({
+        element,
+        anchor: 'center',
+      })
+        .setLngLat(liveLocation)
+        .addTo(mapRef.current);
+    } else {
+      markerUserLocationRef.current.setLngLat(liveLocation);
+    }
+  }, [liveLocation, mapLoaded]);
+
+  useEffect(() => {
+    if (!isLiveLocationActive) {
+      hasCenteredLiveLocationRef.current = false;
+      return;
+    }
+    if (
+      !liveLocation ||
+      !mapLoaded ||
+      !mapRef.current ||
+      hasCenteredLiveLocationRef.current
+    ) {
+      return;
+    }
+
+    mapRef.current.easeTo({ center: liveLocation, duration: 700 });
+    hasCenteredLiveLocationRef.current = true;
+  }, [isLiveLocationActive, liveLocation, mapLoaded]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950">

@@ -251,7 +251,7 @@ function AppMap({
   mapStyle,
   onMapStyleChange,
 }: AppShellProps & MapStyleProps) {
-  const { geoJsonData, visibleRouteIds, highlightedRouteId, pointP, pointA, pointB, activeTrip, selectedPOI, pois, activeTab, routeTarget, handleMapClickPoint, handleHighlightRoute, setSelectedPOI, searchRadiusMeters, customDataset } = controller;
+  const { geoJsonData, visibleRouteIds, highlightedRouteId, pointP, pointA, pointB, activeTrip, selectedPOI, pois, activeTab, routeTarget, liveLocation, isLiveLocationActive, handleMapClickPoint, handleHighlightRoute, setSelectedPOI, searchRadiusMeters, customDataset } = controller;
   return (
     <>
         {/* Full-screen MapLibre GL instance */}
@@ -267,6 +267,8 @@ function AppMap({
           allPOIs={pois}
           activeMode={activeTab}
           routeTarget={routeTarget}
+          liveLocation={liveLocation}
+          isLiveLocationActive={isLiveLocationActive}
           onMapClickPoint={handleMapClickPoint}
           onSelectRoute={handleHighlightRoute}
           onSelectPOI={setSelectedPOI}
@@ -694,7 +696,7 @@ function AppOverlays({
   mapStyle,
   onMapStyleChange,
 }: AppShellProps & MapStyleProps) {
-  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, isPickingComplaintCoords, isTransportComplaintModalOpen, setIsTransportComplaintModalOpen, transportComplaintCoords, transportComplaintLocationAccuracy, transportComplaintResetToken, handleStartPickComplaintCoords, handleCancelPickComplaintCoords, handleSetTransportComplaintLocation, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleLocateUser, handleClearMap, mobileDrawerHeight, routes } = controller;
+  const { isLoading, isGeofenceModalOpen, setIsGeofenceModalOpen, alarmConfig, pointB, pointBAddress, pointP, handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach, isSimulatingApproach, isSoundMuted, handleStopAlarm, handleMuteSound, toastMessage, isHelpOpen, setIsHelpOpen, isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip, activeTrip, isPickingPlaceCoords, setIsPickingPlaceCoords, isPickingComplaintCoords, isTransportComplaintModalOpen, setIsTransportComplaintModalOpen, transportComplaintCoords, transportComplaintLocationAccuracy, transportComplaintResetToken, handleStartPickComplaintCoords, handleCancelPickComplaintCoords, handleSetTransportComplaintLocation, setIsAddPlaceModalOpen, isAuthModalOpen, setIsAuthModalOpen, user, setUser, dbConfigured, refreshCommunityData, showToast, handleSignOut, setIsModerationOpen, isAddPlaceModalOpen, allCategories, pickedPlaceCoords, isFeedbackModalOpen, setIsFeedbackModalOpen, feedbackDefaultTarget, isModerationOpen, handleOpenFeedback, handleOpenNavigationAnimation, handleOpenGeofenceForTarget, handleToggleLiveLocation, isLiveLocationActive, handleClearMap, mobileDrawerHeight, routes } = controller;
   const complaintLineOptions = Array.from(
     new Map(
       routes.map((route) => [
@@ -707,7 +709,8 @@ function AppOverlays({
     <>
         {/* Floating Action Buttons */}
         <FloatingActions
-          onLocateUser={handleLocateUser}
+          onToggleLiveLocation={handleToggleLiveLocation}
+          isLiveLocationActive={isLiveLocationActive}
           onClearMap={handleClearMap}
           onOpenHelp={() => setIsHelpOpen(true)}
           mapStyle={mapStyle}

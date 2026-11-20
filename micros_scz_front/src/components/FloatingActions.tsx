@@ -10,7 +10,8 @@ import {
 import { MAP_STYLES, type MapStyleKey } from '../utils/map-styles.ts';
 
 interface FloatingActionsProps {
-  onLocateUser: () => void;
+  onToggleLiveLocation: () => void;
+  isLiveLocationActive: boolean;
   onClearMap: () => void;
   onOpenHelp: () => void;
   mapStyle: MapStyleKey;
@@ -21,7 +22,8 @@ interface FloatingActionsProps {
 }
 
 export const FloatingActions: React.FC<FloatingActionsProps> = ({
-  onLocateUser,
+  onToggleLiveLocation,
+  isLiveLocationActive,
   onClearMap,
   onOpenHelp,
   mapStyle,
@@ -109,12 +111,32 @@ export const FloatingActions: React.FC<FloatingActionsProps> = ({
 
         {/* GPS Locate button */}
         <button
-          onClick={onLocateUser}
-          className="w-11 h-11 rounded-2xl bg-slate-900/90 text-slate-100 hover:text-white hover:bg-slate-800 shadow-xl border border-white/10 flex items-center justify-center transition group active:scale-95"
-          title="Mi ubicación actual (GPS)"
-          aria-label="Obtener mi ubicación GPS"
+          type="button"
+          onClick={onToggleLiveLocation}
+          aria-pressed={isLiveLocationActive}
+          className={`w-11 h-11 rounded-2xl shadow-xl border flex items-center justify-center transition group active:scale-95 ${
+            isLiveLocationActive
+              ? 'bg-sky-500/20 text-white border-sky-400 ring-2 ring-sky-400/40'
+              : 'bg-slate-900/90 text-slate-100 hover:text-white hover:bg-slate-800 border-white/10'
+          }`}
+          title={
+            isLiveLocationActive
+              ? 'Detener seguimiento de ubicación'
+              : 'Seguir mi ubicación en tiempo real'
+          }
+          aria-label={
+            isLiveLocationActive
+              ? 'Detener seguimiento de ubicación'
+              : 'Seguir mi ubicación en tiempo real'
+          }
         >
-          <Navigation className="w-5 h-5 text-sky-400 group-hover:scale-110 transition" />
+          <Navigation
+            className={`w-5 h-5 ${
+              isLiveLocationActive
+                ? 'text-sky-300'
+                : 'text-sky-400 group-hover:scale-110'
+            } transition`}
+          />
         </button>
 
         {/* Clear active points and selection */}

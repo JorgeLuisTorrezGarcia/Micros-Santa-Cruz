@@ -136,6 +136,10 @@ export function useAppController() {
   const [isSimulatingApproach, setIsSimulatingApproach] = useState<boolean>(false);
   const simulationIntervalRef = useRef<number | null>(null);
   const watchPositionIdRef = useRef<number | null>(null);
+  const liveLocationWatchIdRef = useRef<number | null>(null);
+  const liveLocationSessionRef = useRef(0);
+  const [liveLocation, setLiveLocation] = useState<Coordinates | null>(null);
+  const [isLiveLocationActive, setIsLiveLocationActive] = useState(false);
 
   // 3D Navigation Map Animation state
   const [isAnimationModalOpen, setIsAnimationModalOpen] = useState<boolean>(false);
@@ -457,6 +461,90 @@ export function useAppController() {
     );
   };
 
+  const handleToggleLiveLocation = useCallback(() => {
+    if (isLiveLocationActive) {
+      liveLocationSessionRef.current += 1;
+      if (
+        liveLocationWatchIdRef.current !== null &&
+        typeof navigator !== 'undefined' &&
+        navigator.geolocation
+      ) {
+        navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
+        liveLocationWatchIdRef.current = null;
+      }
+      setIsLiveLocationActive(false);
+      setLiveLocation(null);
+      showToast('Seguimiento de ubicación detenido');
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      showToast('Este dispositivo no permite compartir tu ubicación.');
+      return;
+    }
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      showToast('Para usar tu ubicación, abre la aplicación mediante una conexión segura.');
+      return;
+    }
+
+    const sessionId = liveLocationSessionRef.current + 1;
+    liveLocationSessionRef.current = sessionId;
+    setLiveLocation(null);
+    setIsLiveLocationActive(true);
+    showToast('Solicitando acceso a tu ubicación...');
+
+    let hasReportedTemporaryIssue = false;
+    let hasAnnouncedLocation = false;
+    let watchId: number;
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          if (liveLocationSessionRef.current !== sessionId) return;
+          setLiveLocation([position.coords.longitude, position.coords.latitude]);
+          if (!hasAnnouncedLocation) {
+            showToast('Ubicación activa. Tus coordenadas no se guardan en la app.');
+            hasAnnouncedLocation = true;
+          }
+        },
+        (error) => {
+          if (liveLocationSessionRef.current !== sessionId) return;
+          console.warn('Live location error:', error);
+
+          if (error.code === GeolocationPositionError.PERMISSION_DENIED) {
+            liveLocationSessionRef.current += 1;
+            if (liveLocationWatchIdRef.current !== null) {
+              navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
+              liveLocationWatchIdRef.current = null;
+            }
+            setIsLiveLocationActive(false);
+            setLiveLocation(null);
+            showToast('No se concedió el permiso de ubicación. Puedes activarlo en los ajustes del navegador.');
+            return;
+          }
+
+          if (!hasReportedTemporaryIssue) {
+            showToast('La señal GPS no está disponible por el momento. Seguiremos intentando obtener tu ubicación.');
+            hasReportedTemporaryIssue = true;
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 10000,
+        }
+      );
+    } catch (error: unknown) {
+      liveLocationSessionRef.current += 1;
+      console.error('Could not start live geolocation tracking:', error);
+      setIsLiveLocationActive(false);
+      setLiveLocation(null);
+      showToast('No pudimos iniciar la ubicación. Revisa los permisos del navegador e inténtalo nuevamente.');
+      return;
+    }
+
+    liveLocationWatchIdRef.current = watchId;
+  }, [isLiveLocationActive, showToast]);
+
   // GPS watcher for Geofence Proximity Alarm
   useEffect(() => {
     if (!alarmConfig.isActive || isSimulatingApproach || !alarmConfig.targetCoords) {
@@ -517,6 +605,15 @@ export function useAppController() {
   useEffect(() => {
     return () => {
       stopAlarmLoop();
+      liveLocationSessionRef.current += 1;
+      if (
+        liveLocationWatchIdRef.current !== null &&
+        typeof navigator !== 'undefined' &&
+        navigator.geolocation
+      ) {
+        navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
+        liveLocationWatchIdRef.current = null;
+      }
       if (simulationIntervalRef.current) {
         clearInterval(simulationIntervalRef.current);
       }
@@ -1066,6 +1163,7 @@ export function useAppController() {
     pointA, setPointA, pointB, setPointB, pointAAddress, pointBAddress,
     routeTarget, setRouteTarget, trips, activeTrip, alarmConfig, isGeofenceModalOpen,
     setIsGeofenceModalOpen, isSimulatingApproach,
+    liveLocation, isLiveLocationActive,
     isAnimationModalOpen, setIsAnimationModalOpen, selectedAnimationTrip,
     isAuthModalOpen, setIsAuthModalOpen, isFeedbackModalOpen, setIsFeedbackModalOpen,
     isTransportComplaintModalOpen, setIsTransportComplaintModalOpen,
@@ -1080,7 +1178,8 @@ export function useAppController() {
     handleExecutePlanRoute, handleExecuteNearby, handleExecuteHighlightLine,
     handleExecuteGeofence, handleExecuteExplorePlaces, handleToggleRouteVisibility,
     handleShowAllRoutes, handleHideAllRoutes, handleZoomToRoute, handleToggleFavoriteLine,
-    handleSetPointAs, handleLocateUser, handleSwapPoints, handleSelectTrip, handleClearMap,
+    handleSetPointAs, handleLocateUser, handleToggleLiveLocation, handleSwapPoints,
+    handleSelectTrip, handleClearMap,
     matchingTripFavorite, handleToggleFavoriteTrip, handleApplyFavoriteTrip,
     handleDeleteFavorite, handleDeletePlace, handleOpenGeofenceForTarget,
     handleActivateGeofence, handleDeactivateGeofence, handleSimulateApproach,
